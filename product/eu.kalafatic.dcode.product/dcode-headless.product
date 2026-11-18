@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?pde version="3.5"?>
+<product name="DCode Headless" uid="eu.kalafatic.dcode.server.headless"
+         id="eu.kalafatic.dcode.server.headless"
+         application="eu.kalafatic.dcode.server.application"
+         version="0.1.0.qualifier" useFeatures="true"
+         includeLaunchers="true">
+
+   <aboutInfo>
+      <text>
+         DCode — Darwin Code. Headless server runtime.
+      </text>
+   </aboutInfo>
+
+   <configIni use="default">
+   </configIni>
+
+   <launcher name="dcode-headless"/>
+
+   <features>
+      <feature id="eu.kalafatic.dcode.feature"/>
+      <feature id="org.eclipse.rcp"/>
+   </features>
+
+   <configurations>
+      <plugin id="org.apache.felix.scr" autoStart="true" startLevel="2"/>
+      <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="4"/>
+      <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2"/>
+      <plugin id="org.eclipse.equinox.event" autoStart="true" startLevel="2"/>
+      <plugin id="org.eclipse.equinox.simpleconfigurator" autoStart="true" startLevel="1"/>
+      <plugin id="eu.kalafatic.dcode.server" autoStart="true" startLevel="4"/>
+   </configurations>
+</product>

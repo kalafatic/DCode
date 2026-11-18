@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension point="org.eclipse.core.runtime.applications" id="application">
+      <application>
+         <run class="eu.kalafatic.dcode.server.HeadlessApplication"/>
+      </application>
+   </extension>
+
+   <extension id="headless" point="org.eclipse.core.runtime.products">
+      <product application="eu.kalafatic.dcode.server.application" name="DCode Headless">
+         <property name="appName" value="DCode Headless"/>
+      </product>
+   </extension>
+</plugin>

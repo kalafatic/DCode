@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.4.0"
+               name="eu.kalafatic.dcode.core.CoreRuntime"
+               immediate="true"
+               activate="activate"
+               deactivate="deactivate">
+    <implementation class="eu.kalafatic.dcode.core.CoreRuntime"/>
+    <service>
+        <provide interface="eu.kalafatic.dcode.core.event.EventBus"/>
+        <provide interface="eu.kalafatic.dcode.core.lifecycle.DCodeLifecycle"/>
+        <provide interface="eu.kalafatic.dcode.core.config.ConfigurationService"/>
+    </service>
+</scr:component>

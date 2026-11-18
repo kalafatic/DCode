@@ -1,0 +1,23 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DCode Client
+Bundle-SymbolicName: eu.kalafatic.dcode.client;singleton:=true
+Bundle-Version: 0.1.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-Vendor: Kalafatic
+Bundle-ActivationPolicy: lazy
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
+Require-Bundle: eu.kalafatic.dcode.core;bundle-version="0.1.0"
+Import-Package: org.osgi.framework;version="[1.10.0,2.0.0)"
+Bundle-ClassPath: .,
+ lib/jackson-annotations-2.20.jar,
+ lib/jackson-core-2.20.0.jar,
+ lib/jackson-databind-2.20.0.jar
+Export-Package: eu.kalafatic.dcode.client,
+ com.fasterxml.jackson.core,
+ com.fasterxml.jackson.core.type,
+ com.fasterxml.jackson.core.util,
+ com.fasterxml.jackson.databind,
+ com.fasterxml.jackson.databind.node,
+ com.fasterxml.jackson.annotation
+Automatic-Module-Name: eu.kalafatic.dcode.client

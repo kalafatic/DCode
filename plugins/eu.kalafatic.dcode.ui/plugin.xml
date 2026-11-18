@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension point="org.eclipse.core.runtime.applications" id="application">
+      <application>
+         <run class="eu.kalafatic.dcode.ui.DCodeRcpApplication"/>
+      </application>
+   </extension>
+
+   <extension id="rcp" point="org.eclipse.core.runtime.products">
+      <product application="eu.kalafatic.dcode.ui.application" name="DCode">
+         <property name="appName" value="DCode"/>
+      </product>
+   </extension>
+
+   <extension point="org.eclipse.ui.perspectives">
+      <perspective class="eu.kalafatic.dcode.ui.DCodePerspectiveFactory"
+                   id="eu.kalafatic.dcode.ui.perspective"
+                   name="DCode"/>
+   </extension>
+
+   <extension point="org.eclipse.ui.views">
+      <category id="eu.kalafatic.dcode.ui" name="DCode"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.WorkspaceExplorerView"
+            id="eu.kalafatic.dcode.ui.views.workspace"
+            name="Workspace Explorer"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.SessionsView"
+            id="eu.kalafatic.dcode.ui.views.sessions"
+            name="Sessions"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ChatView"
+            id="eu.kalafatic.dcode.ui.views.chat"
+            name="AI Chat"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ActivityView"
+            id="eu.kalafatic.dcode.ui.views.activity"
+            name="Agent Activity"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ConsoleView"
+            id="eu.kalafatic.dcode.ui.views.console"
+            name="Console"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.JavaToolsView"
+            id="eu.kalafatic.dcode.ui.views.javatools"
+            name="Java Tools"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ChangesView"
+            id="eu.kalafatic.dcode.ui.views.changes"
+            name="Changes"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ProvidersView"
+            id="eu.kalafatic.dcode.ui.views.providers"
+            name="Providers"/>
+      <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ConnectionView"
+            id="eu.kalafatic.dcode.ui.views.connection"
+            name="Connection"/>
+   </extension>
+
+   <extension point="org.eclipse.ui.editors">
+      <editor class="eu.kalafatic.dcode.ui.editors.DCodeFileEditor"
+              default="false"
+              id="eu.kalafatic.dcode.ui.editors.file"
+              name="DCode Source Editor"/>
+      <editor class="eu.kalafatic.dcode.ui.editors.DCodeDiffEditor"
+              default="false"
+              id="eu.kalafatic.dcode.ui.editors.diff"
+              name="DCode Diff Editor"/>
+   </extension>
+</plugin>

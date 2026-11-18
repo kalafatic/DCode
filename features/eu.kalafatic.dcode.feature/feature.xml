@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="eu.kalafatic.dcode.feature"
+      label="DCode Feature"
+      version="0.1.0.qualifier"
+      provider-name="Kalafatic">
+
+   <description>
+      DCode — Darwin Code: native AI coding harness platform (Core, Harness, Java
+      Tooling, Persistence, Headless Runtime, Web UI, RCP IDE).
+   </description>
+
+   <copyright>
+      Darwin family.
+   </copyright>
+
+   <license>
+      Family-internal product.
+   </license>
+
+   <requires>
+      <import feature="org.eclipse.rcp" version="0.0.0"/>
+      <import feature="org.eclipse.e4.rcp" version="0.0.0"/>
+   </requires>
+
+   <plugin
+         id="eu.kalafatic.dcode.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.config"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.repositories"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.harness"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.java.tooling"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.persistence"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.server"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.client"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="eu.kalafatic.dcode.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+</feature>

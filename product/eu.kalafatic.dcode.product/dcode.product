@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?pde version="3.5"?>
+<product name="DCode" uid="eu.kalafatic.dcode.ui.rcp"
+         id="eu.kalafatic.dcode.ui.rcp"
+         application="eu.kalafatic.dcode.ui.application"
+         version="0.1.0.qualifier" useFeatures="true"
+         includeLaunchers="true">
+
+   <aboutInfo>
+      <text>
+         DCode — Darwin Code. Native AI coding harness IDE.
+      </text>
+   </aboutInfo>
+
+   <configIni use="default">
+   </configIni>
+
+   <launcherArgs>
+      <programArgs>-perspective eu.kalafatic.dcode.ui.perspective</programArgs>
+      <vmArgs>-Xms256m -Xmx2g</vmArgs>
+   </launcherArgs>
+
+   <launcher name="dcode"/>
+
+   <features>
+      <feature id="eu.kalafatic.dcode.feature"/>
+      <feature id="org.eclipse.rcp"/>
+      <feature id="org.eclipse.e4.rcp"/>
+   </features>
+
+   <configurations>
+      <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="4"/>
+      <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2"/>
+      <plugin id="org.eclipse.equinox.event" autoStart="true" startLevel="2"/>
+   </configurations>
+</product>

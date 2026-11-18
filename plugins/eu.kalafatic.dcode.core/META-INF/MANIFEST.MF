@@ -1,0 +1,20 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DCode Core
+Bundle-SymbolicName: eu.kalafatic.dcode.core;singleton:=true
+Bundle-Version: 0.1.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-Vendor: Kalafatic
+Bundle-ActivationPolicy: lazy
+Bundle-Activator: eu.kalafatic.dcode.core.internal.CoreActivator
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
+Import-Package: org.osgi.framework;version="[1.10.0,2.0.0)"
+Export-Package: eu.kalafatic.dcode.core,
+ eu.kalafatic.dcode.core.config,
+ eu.kalafatic.dcode.core.event,
+ eu.kalafatic.dcode.core.lifecycle,
+ eu.kalafatic.dcode.core.log,
+ eu.kalafatic.dcode.core.model,
+ eu.kalafatic.dcode.core.port,
+ eu.kalafatic.dcode.core.service
+Automatic-Module-Name: eu.kalafatic.dcode.core

@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DCode UI
+Bundle-SymbolicName: eu.kalafatic.dcode.ui;singleton:=true
+Bundle-Version: 0.1.0.202611180549
+Bundle-Vendor: Kalafatic
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
+Require-Bundle: eu.kalafatic.dcode.core;bundle-version="0.1.0",eu.kalafa
+ tic.dcode.client;bundle-version="0.1.0",org.eclipse.core.runtime;bundle
+ -version="3.31.0",org.eclipse.equinox.app;bundle-version="1.7.0",org.ec
+ lipse.ui;bundle-version="3.205.0",org.eclipse.ui.workbench;bundle-versi
+ on="3.131.0",org.eclipse.jface.text;bundle-version="3.25.0"
+Import-Package: org.osgi.framework;version="[1.10.0,2.0.0)"
+Bundle-ClassPath: .
+Export-Package: eu.kalafatic.dcode.ui,eu.kalafatic.dcode.ui.editors,eu.k
+ alafatic.dcode.ui.views
+Automatic-Module-Name: eu.kalafatic.dcode.ui
+
