@@ -180,6 +180,8 @@ public final class SessionExecutor {
             }
             if (!outcome.success()) {
                 agentEngine.finishRun(run.id(), ExecutionState.FAILED, outcome.summary());
+                sessionService.appendMessage(sessionId, MessageRole.ASSISTANT,
+                        "[FAILED] " + outcome.summary());
                 sessionService.transition(sessionId, SessionState.FAILED);
                 eventBus.publish(StandardEvent.of(DCodeEventType.SYSTEM_ERROR, sessionId,
                         "{\"message\":\"Execution failed (runtime="
@@ -255,7 +257,31 @@ public final class SessionExecutor {
     private ModelSelection routeFallback(Session session) {
         AgentRole role = session.getAgentRole() != null ? session.getAgentRole()
                 : AgentRole.MAIN;
-        return modelRouter.resolve(role);
+        try {
+            return modelRouter.resolve(role);
+        } catch (ProviderException routerError) {
+            // No explicit model configuration anywhere: resolve through the registry
+            // default runtime — its default model, or its first discovered model.
+            if (providerRegistry instanceof eu.kalafatic.dcode.config.runtime.RuntimeRegistry runtimes) {
+                var defaultRuntime = runtimes.defaultRuntime();
+                if (defaultRuntime.isPresent()) {
+                    String modelId = runtimes.defaultModel().orElse("");
+                    if (modelId.isBlank()) {
+                        modelId = runtimes.listModels(defaultRuntime.get().id()).stream()
+                                .filter(ModelDefinition::available)
+                                .map(ModelDefinition::id)
+                                .findFirst().orElse("");
+                    }
+                    if (!modelId.isBlank()) {
+                        DCodeLog.info("execution", "No configured model; using "
+                                + modelId + " on default runtime "
+                                + defaultRuntime.get().id());
+                        return new ModelSelection(defaultRuntime.get().id(), modelId);
+                    }
+                }
+            }
+            throw routerError;
+        }
     }
 
     /**
