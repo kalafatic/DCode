@@ -875,12 +875,54 @@ public final class DCodeApi {
                 repositoryNode.put("changedCount", changed.size());
                 repositoryNode.put("diff", repositories.diff(workspace, repository));
             } catch (Exception e) {
+                // Plain-folder workspaces (no .git) or broken repositories: report the
+                // session's own tool-call record — the files the engine really wrote —
+                // with a synthesized diff, instead of an empty error entry.
+                var toolEngine = toolEngineSupplier.get();
+                List<String> files = eu.kalafatic.dcode.harness.change.ChangeManager
+                        .sessionToolFiles(toolEngine, sessionId);
                 ObjectNode repositoryNode = repositoryNodes.addObject();
                 repositoryNode.put("name", repository.name());
-                repositoryNode.put("error", String.valueOf(e.getMessage()));
+                repositoryNode.put("branch", "");
+                repositoryNode.put("accessPolicy", repository.accessPolicy().name());
+                repositoryNode.put("clean", true);
+                ArrayNode fileNodes = repositoryNode.putArray("changedFiles");
+                files.forEach(fileNodes::add);
+                repositoryNode.put("changedCount", files.size());
+                repositoryNode.put("diff", toolDiff(toolEngine, sessionId));
+                repositoryNode.put("source", "session-tool-record");
             }
         }
         return ok(node);
+    }
+
+    /** Synthesized unified diff from the session's write_file tool calls. */
+    private String toolDiff(eu.kalafatic.dcode.harness.tool.ToolEngine toolEngine,
+                            String sessionId) {
+        if (toolEngine == null) {
+            return "";
+        }
+        StringBuilder diff = new StringBuilder();
+        for (eu.kalafatic.dcode.core.model.ToolCall call : toolEngine.callsOf(sessionId)) {
+            if (!"write_file".equals(call.toolName())) {
+                continue;
+            }
+            try {
+                JsonNode arguments = mapper.readTree(call.argumentsJson());
+                String path = arguments.path("path").asText("");
+                String content = arguments.path("content").asText("");
+                if (path.isBlank()) {
+                    continue;
+                }
+                diff.append("--- /dev/null\n+++ b/").append(path).append('\n');
+                for (String line : content.split("\n", -1)) {
+                    diff.append('+').append(line).append('\n');
+                }
+            } catch (Exception ignored) {
+                // unparseable tool call: skip
+            }
+        }
+        return diff.toString();
     }
 
     private static int parseInt(String value, int fallback) {

@@ -134,7 +134,7 @@ public final class HarnessActivator implements BundleActivator {
         ContextEngine contextEngine = new ContextEngine(repositoryOperations);
         ToolCallingAgentLoop agentLoop = new ToolCallingAgentLoop(providerRegistry,
                 toolEngine, toolRegistry, contextEngine, fallbackSessionService);
-        ChangeManager changeManager = new ChangeManager(repositoryOperations);
+        ChangeManager changeManager = new ChangeManager(repositoryOperations, toolEngine);
         SessionExecutor sessionExecutor = new SessionExecutor(sessionSupplier,
                 workspaceSupplier, reviewSupplier, providerRegistry, modelRouter,
                 repositoryOperations, gitAccounts, agentEngine, agentLoop, changeManager,

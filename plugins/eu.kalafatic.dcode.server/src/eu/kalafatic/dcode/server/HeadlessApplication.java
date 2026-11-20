@@ -29,6 +29,15 @@ public final class HeadlessApplication implements IApplication {
     private static final List<String[]> LOG_BUFFER = new ArrayList<>();
     private static final int LOG_BUFFER_SIZE = 500;
 
+    /**
+     * OS-level stdout (via the raw file descriptor), captured at class-load time:
+     * the Equinox/OSGi console replaces the live {@code System.out} stream shortly
+     * after application start, which would silently swallow every later log line of
+     * the runtime.
+     */
+    private static final java.io.PrintStream CONSOLE = new java.io.PrintStream(
+            new java.io.FileOutputStream(java.io.FileDescriptor.out), true);
+
     private volatile boolean stopped;
     private volatile String subcommand;
 
@@ -37,19 +46,20 @@ public final class HeadlessApplication implements IApplication {
         List<String> args = applicationArgs(context);
         subcommand = args.isEmpty() ? "" : args.get(0);
         String subArgument = args.size() > 1 ? args.get(1) : "";
-        // Console output is preserved (default sink) AND the ring buffer for the
-        // `logs` subcommand records the same entries.
+        // Console output is preserved (captured stream — the OSGi console redirects
+        // the live System.out after startup) AND the ring buffer for the `logs`
+        // subcommand records the same entries.
         DCodeLog.setSink((level, source, message, throwable) -> {
-            System.out.println(java.time.Instant.now() + " " + level.name() + " ["
+            CONSOLE.println(java.time.Instant.now() + " " + level.name() + " ["
                     + source + "] " + message);
             if (throwable != null) {
-                throwable.printStackTrace(System.out);
+                throwable.printStackTrace(CONSOLE);
             }
             rememberLog(level, source, message);
         });
-        System.out.println("[DCode] Headless runtime starting (no UI dependencies)");
+        CONSOLE.println("[DCode] Headless runtime starting (no UI dependencies)");
         if (subcommand.isBlank()) {
-            System.out.println("[DCode] Run with an argument for commands: "
+            CONSOLE.println("[DCode] Run with an argument for commands: "
                     + "status runtimes providers models sessions logs web terminal "
                     + "stop restart help");
         }
@@ -77,7 +87,7 @@ public final class HeadlessApplication implements IApplication {
             try {
                 return runCommand(subcommand, subArgument, endpoint);
             } catch (Exception e) {
-                System.err.println("[DCode] " + subcommand + " failed: " + e.getMessage());
+                CONSOLE.println("[DCode] " + subcommand + " failed: " + e.getMessage());
                 return Integer.valueOf(1);
             }
         }
@@ -91,7 +101,7 @@ public final class HeadlessApplication implements IApplication {
                 break;
             }
         }
-        System.out.println("[DCode] Headless runtime stopped");
+        CONSOLE.println("[DCode] Headless runtime stopped");
         return IApplication.EXIT_OK;
     }
 
@@ -101,21 +111,21 @@ public final class HeadlessApplication implements IApplication {
             case "status" -> {
                 JsonNode status = getJson(endpoint + "/api/v1/status");
                 JsonNode ports = getJson(endpoint + "/api/v1/ports");
-                System.out.println("DCode status: ready=" + status.path("ready").asBoolean());
+                CONSOLE.println("DCode status: ready=" + status.path("ready").asBoolean());
                 status.path("stages").properties().forEach(entry ->
-                        System.out.println("  " + entry.getKey() + ": "
+                        CONSOLE.println("  " + entry.getKey() + ": "
                                 + entry.getValue().asText()));
                 for (JsonNode port : ports) {
-                    System.out.println("  port " + port.path("id").asText() + ": "
+                    CONSOLE.println("  port " + port.path("id").asText() + ": "
                             + port.path("actualPort").asInt() + " ("
                             + port.path("state").asText() + ")");
                 }
             }
             case "runtimes" -> {
                 JsonNode runtimes = getJson(endpoint + "/api/v1/runtimes");
-                System.out.println("Runtimes (" + runtimes.size() + "):");
+                CONSOLE.println("Runtimes (" + runtimes.size() + "):");
                 for (JsonNode runtime : runtimes) {
-                    System.out.println("  " + runtime.path("name").asText(
+                    CONSOLE.println("  " + runtime.path("name").asText(
                             runtime.path("id").asText("")) + "  " + runtime.path("type")
                             .asText("") + "  " + runtime.path("endpoint").asText("")
                             + "  enabled=" + runtime.path("enabled").asBoolean()
@@ -129,18 +139,18 @@ public final class HeadlessApplication implements IApplication {
             }
             case "providers" -> {
                 JsonNode providers = getJson(endpoint + "/api/v1/providers");
-                System.out.println("Providers (" + providers.size() + "):");
+                CONSOLE.println("Providers (" + providers.size() + "):");
                 for (JsonNode provider : providers) {
-                    System.out.println("  " + provider.path("name").asText(
+                    CONSOLE.println("  " + provider.path("name").asText(
                             provider.path("id").asText("")) + "  " + provider.path("type")
                             .asText("") + "  " + provider.path("endpoint").asText(""));
                 }
             }
             case "models" -> {
                 JsonNode models = getJson(endpoint + "/api/v1/models");
-                System.out.println("Models (" + models.size() + "):");
+                CONSOLE.println("Models (" + models.size() + "):");
                 for (JsonNode model : models) {
-                    System.out.println("  " + model.path("id").asText("") + "  runtime="
+                    CONSOLE.println("  " + model.path("id").asText("") + "  runtime="
                             + model.path("runtimeId").asText("") + "  size="
                             + model.path("sizeBytes").asLong(0) + "  available="
                             + model.path("available").asBoolean());
@@ -153,10 +163,10 @@ public final class HeadlessApplication implements IApplication {
                             + java.net.URLEncoder.encode(workspace.path("id").asText(""),
                             java.nio.charset.StandardCharsets.UTF_8));
                     if (sessions.size() > 0) {
-                        System.out.println("Workspace " + workspace.path("name").asText(""));
+                        CONSOLE.println("Workspace " + workspace.path("name").asText(""));
                     }
                     for (JsonNode session : sessions) {
-                        System.out.println("  " + session.path("id").asText("") + "  "
+                        CONSOLE.println("  " + session.path("id").asText("") + "  "
                                 + session.path("title").asText("") + "  ["
                                 + session.path("state").asText("") + "]");
                     }
@@ -165,10 +175,10 @@ public final class HeadlessApplication implements IApplication {
             case "logs" -> {
                 synchronized (LOG_BUFFER) {
                     if (LOG_BUFFER.isEmpty()) {
-                        System.out.println("(no buffered log entries)");
+                        CONSOLE.println("(no buffered log entries)");
                     }
                     for (String[] entry : LOG_BUFFER) {
-                        System.out.println(entry[0] + " [" + entry[1] + "] " + entry[2]);
+                        CONSOLE.println(entry[0] + " [" + entry[1] + "] " + entry[2]);
                     }
                 }
             }
@@ -177,13 +187,13 @@ public final class HeadlessApplication implements IApplication {
             case "stop" -> stopServerProcess();
             case "restart" -> {
                 stopServerProcess();
-                System.out.println("[DCode] Restart: start DCode again (e.g. the "
+                CONSOLE.println("[DCode] Restart: start DCode again (e.g. the "
                         + "dcode-headless launcher or your service manager) once the "
                         + "port is released.");
             }
             case "help" -> printHelp();
             default -> {
-                System.out.println("[DCode] Unknown command: " + command);
+                CONSOLE.println("[DCode] Unknown command: " + command);
                 printHelp();
                 return Integer.valueOf(1);
             }
@@ -212,16 +222,16 @@ public final class HeadlessApplication implements IApplication {
                 eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
         var occupant = eu.kalafatic.dcode.core.port.PortInspector.occupant(port);
         if (occupant.isEmpty()) {
-            System.out.println("[DCode] Nothing is listening on port " + port);
+            CONSOLE.println("[DCode] Nothing is listening on port " + port);
             return;
         }
         long pid = occupant.get().pid();
         if (pid == ProcessHandle.current().pid()) {
-            System.out.println("[DCode] This process owns port " + port
+            CONSOLE.println("[DCode] This process owns port " + port
                     + " — send SIGTERM (Ctrl+C) or run stop from another process.");
             return;
         }
-        System.out.println("[DCode] Stopping DCode (pid " + pid + " on port " + port
+        CONSOLE.println("[DCode] Stopping DCode (pid " + pid + " on port " + port
                 + ")…");
         ProcessHandle.of(pid).ifPresent(handle -> {
             handle.destroy();
@@ -245,14 +255,14 @@ public final class HeadlessApplication implements IApplication {
         }
         try {
             new ProcessBuilder(command).inheritIO().start();
-            System.out.println("[DCode] Opened " + target);
+            CONSOLE.println("[DCode] Opened " + target);
         } catch (Exception e) {
-            System.err.println("[DCode] Cannot open " + target + ": " + e.getMessage());
+            CONSOLE.println("[DCode] Cannot open " + target + ": " + e.getMessage());
         }
     }
 
     private static void printHelp() {
-        System.out.println("""
+        CONSOLE.println("""
                 DCode headless commands (against the same backend as RCP and Web):
                   status      backend readiness and lifecycle stages
                   runtimes    runtime registrations with live availability
