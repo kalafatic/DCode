@@ -50,6 +50,10 @@ public final class DCodeHttpServer extends NanoHTTPD {
             if (path.equals(API_PREFIX + "/events/stream")) {
                 return serveEventStream(session);
             }
+            if (path.equals(API_PREFIX + "/inference/chat/stream")
+                    && session.getMethod().name().equals("POST")) {
+                return serveInferenceStream(session);
+            }
             if (path.startsWith(API_PREFIX)) {
                 DCodeApi.ApiPayload payload = api.dispatch(session.getMethod().name(), path, session);
                 return json(statusOf(payload.status()), payload.body());
@@ -148,6 +152,28 @@ public final class DCodeHttpServer extends NanoHTTPD {
         response.addHeader("Cache-Control", "no-cache");
         response.addHeader("Connection", "keep-alive");
         return response;
+    }
+
+    /** Direct inference chat streaming: SSE tokens over the runtime adapter stream. */
+    private Response serveInferenceStream(IHTTPSession session) {
+        try {
+            String body = readBody(session);
+            InputStream stream = api.openInferenceStream(body);
+            Response response = newChunkedResponse(Response.Status.OK,
+                    "text/event-stream; charset=utf-8", stream);
+            response.addHeader("Cache-Control", "no-cache");
+            response.addHeader("Connection", "keep-alive");
+            return response;
+        } catch (IllegalArgumentException e) {
+            return json(Response.Status.BAD_REQUEST,
+                    api.error("VALIDATION_FAILED", e.getMessage(), null, false));
+        } catch (IllegalStateException e) {
+            return json(Response.Status.SERVICE_UNAVAILABLE,
+                    api.error("SERVICE_UNAVAILABLE", e.getMessage(), null, false));
+        } catch (Exception e) {
+            return json(Response.Status.INTERNAL_ERROR,
+                    api.error("INTERNAL_ERROR", String.valueOf(e.getMessage()), null, false));
+        }
     }
 
     static Response json(Response.Status status, String body) {

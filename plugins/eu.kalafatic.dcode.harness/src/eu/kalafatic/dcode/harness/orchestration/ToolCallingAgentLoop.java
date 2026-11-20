@@ -79,16 +79,21 @@ public final class ToolCallingAgentLoop {
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(systemPrompt));
 
-        // Ingested platform context (EVO Cognitive Services): rendered as a
-        // dedicated SYSTEM section, never mixed with user/assistant history.
+        // Ingested platform context (EVO Cognitive Services) and agent profiles:
+        // both are rendered as dedicated SYSTEM sections, never mixed with
+        // user/assistant history.
         List<eu.kalafatic.dcode.core.model.Message> sessionMessages =
                 effectiveSessionService.listMessages(session.getId());
         java.util.List<eu.kalafatic.dcode.core.model.Message> platformContexts = new java.util.ArrayList<>();
+        java.util.List<eu.kalafatic.dcode.core.model.Message> agentProfiles = new java.util.ArrayList<>();
         java.util.List<eu.kalafatic.dcode.core.model.Message> historyMessages = new java.util.ArrayList<>();
         for (eu.kalafatic.dcode.core.model.Message message : sessionMessages) {
             if (message.role() == MessageRole.SYSTEM && message.content() != null
                     && message.content().startsWith("{\"source\":\"EVO_COGNITIVE_SERVICES\"")) {
                 platformContexts.add(message);
+            } else if (message.role() == MessageRole.SYSTEM && message.content() != null
+                    && message.content().startsWith("{\"source\":\"DCODE_AGENT_PROFILE\"")) {
+                agentProfiles.add(message);
             } else {
                 historyMessages.add(message);
             }
@@ -101,6 +106,20 @@ public final class ToolCallingAgentLoop {
                         + envelope.path("sections").toString()));
             } catch (Exception ignored) {
                 messages.add(ChatMessage.system("Platform context (EVO):\n" + platform.content()));
+            }
+        }
+        for (eu.kalafatic.dcode.core.model.Message profile : agentProfiles) {
+            try {
+                com.fasterxml.jackson.databind.JsonNode envelope =
+                        new com.fasterxml.jackson.databind.ObjectMapper().readTree(profile.content());
+                String instructions = envelope.path("instructions").asText("");
+                if (!instructions.isBlank()) {
+                    messages.add(ChatMessage.system("Agent profile ("
+                            + envelope.path("agentName").asText("agent")
+                            + "):\n" + instructions));
+                }
+            } catch (Exception ignored) {
+                // malformed profile: ignored, history assembly continues
             }
         }
         messages.add(ChatMessage.user("Task: " + task));
@@ -118,6 +137,17 @@ public final class ToolCallingAgentLoop {
                 var response = providers.complete(providerId, new ChatRequest(modelId,
                         messages, 0.2, 4096));
                 String text = response.content().strip();
+                if (text.isEmpty()) {
+                    // Empty model output (typically an exhausted context or a model
+                    // that cannot follow the agent protocol): fail explicitly with a
+                    // diagnostic instead of pretending completion.
+                    return new Outcome(false, "Empty response from model '" + modelId
+                            + "' on runtime '" + providerId + "' (finishReason="
+                            + response.finishReason() + "): the model may not support "
+                            + "the coding-agent protocol or its context window is too "
+                            + "small for the harness prompt", iteration + 1, toolCalls,
+                            null);
+                }
                 effectiveSessionService.appendMessage(session.getId(), MessageRole.ASSISTANT, text);
 
                 JsonNode action = parseAction(text);
@@ -176,7 +206,13 @@ public final class ToolCallingAgentLoop {
             json = trimmed.substring(start, end + 1);
         }
         try {
-            return mapper.readTree(json);
+            JsonNode node = mapper.readTree(json);
+            if (node == null || node.isMissingNode() || node.isNull()
+                    || !node.isObject()) {
+                // Not a structured tool/final action: treat as a plain final answer.
+                return null;
+            }
+            return node;
         } catch (Exception e) {
             return null;
         }

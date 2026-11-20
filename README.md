@@ -1,7 +1,7 @@
-# DCoder
+# DCode
 ### DARWIN CODER — Autonomous AI Coding Agent
 
-DCoder is an independent AI-powered software engineering agent designed to understand, analyze, modify, test, and validate complete software projects.
+DCode is an independent AI-powered software engineering agent designed to understand, analyze, modify, test, and validate complete software projects.
 
 It is the native coding agent of DStudio, but it is not dependent on DStudio and must be capable of operating as a standalone application and server.
 
@@ -21,7 +21,7 @@ It is the native coding agent of DStudio, but it is not dependent on DStudio and
 
 ### Adaptive Development Workflow
 
-DCoder must select an appropriate workflow based on the task.
+DCode must select an appropriate workflow based on the task.
 
 Possible stages include:
 
@@ -55,7 +55,7 @@ Failed builds, tests, and verification steps should trigger analysis and correct
 
 ### LLM and Tool Independence
 
-DCoder must not be tied to a particular model, provider, or inference runtime.
+DCode must not be tied to a particular model, provider, or inference runtime.
 
 It should support configurable LLM providers, including local inference systems such as Ollama and compatible remote APIs.
 
@@ -63,7 +63,7 @@ The coding agent owns its reasoning and development workflow. LLMs provide intel
 
 ### Integration
 
-DCoder provides its capabilities to DStudio through a defined communication interface.
+DCode provides its capabilities to DStudio through a defined communication interface.
 
 It must also be capable of accepting development requests independently of DStudio.
 

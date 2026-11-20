@@ -43,43 +43,50 @@ public final class JavaToolingActivator implements BundleActivator {
     }
 
     private void wire() {
-        ToolRegistry toolRegistry = context.getService(
-                context.getServiceReference(ToolRegistry.class));
-        DCodeLifecycle lifecycle = context.getService(
-                context.getServiceReference(DCodeLifecycle.class));
-        workspaceManager = new JavaWorkspaceManager();
-
-        toolRegistry.register(new JavaProjectStructureTool(workspaceManager));
-        toolRegistry.register(new JavaDiagnosticsTool(workspaceManager));
-        toolRegistry.register(new JavaAstSummaryTool(workspaceManager));
-        toolRegistry.register(new JavaResolveTypeTool(workspaceManager));
-        toolRegistry.register(new JavaTypeHierarchyTool(workspaceManager));
-        toolRegistry.register(new JavaCallHierarchyTool(workspaceManager));
-        toolRegistry.register(new JavaFindReferencesTool(workspaceManager));
-        toolRegistry.register(new JavaFindImplementationsTool(workspaceManager));
-        toolRegistry.register(new JavaAnalyzeImportsTool(workspaceManager));
-        toolRegistry.register(new JavaAnalyzeDependenciesTool(workspaceManager));
-        toolRegistry.register(new JavaRenameTool(workspaceManager));
-        toolRegistry.register(new PdeInspectBundleTool(workspaceManager));
-        toolRegistry.register(new PdeAnalyzeDependenciesTool(workspaceManager));
-
-        lifecycle.registerAction(LifecycleStage.TOOLING, "java-tooling-services",
-                new DCodeLifecycle.LifecycleAction() {
-                    @Override
-                    public void start() {
-                        DCodeLog.info("java.tooling",
-                                "Eclipse JDT/PDE tooling registered (13 tools)");
-                    }
-
-                    @Override
-                    public void stop() {
-                        DCodeLog.info("java.tooling", "Eclipse JDT/PDE tooling stopped");
-                    }
-                });
         try {
-            lifecycle.startThrough(LifecycleStage.TOOLING);
-        } catch (Exception e) {
-            DCodeLog.error("java.tooling", "Failed to advance lifecycle to TOOLING", e);
+            ToolRegistry toolRegistry = context.getService(
+                    context.getServiceReference(ToolRegistry.class));
+            DCodeLifecycle lifecycle = context.getService(
+                    context.getServiceReference(DCodeLifecycle.class));
+            workspaceManager = new JavaWorkspaceManager();
+
+            toolRegistry.register(new JavaProjectStructureTool(workspaceManager));
+            toolRegistry.register(new JavaDiagnosticsTool(workspaceManager));
+            toolRegistry.register(new JavaAstSummaryTool(workspaceManager));
+            toolRegistry.register(new JavaResolveTypeTool(workspaceManager));
+            toolRegistry.register(new JavaTypeHierarchyTool(workspaceManager));
+            toolRegistry.register(new JavaCallHierarchyTool(workspaceManager));
+            toolRegistry.register(new JavaFindReferencesTool(workspaceManager));
+            toolRegistry.register(new JavaFindImplementationsTool(workspaceManager));
+            toolRegistry.register(new JavaAnalyzeImportsTool(workspaceManager));
+            toolRegistry.register(new JavaAnalyzeDependenciesTool(workspaceManager));
+            toolRegistry.register(new JavaRenameTool(workspaceManager));
+            toolRegistry.register(new PdeInspectBundleTool(workspaceManager));
+            toolRegistry.register(new PdeAnalyzeDependenciesTool(workspaceManager));
+
+            lifecycle.registerAction(LifecycleStage.TOOLING, "java-tooling-services",
+                    new DCodeLifecycle.LifecycleAction() {
+                        @Override
+                        public void start() {
+                            DCodeLog.info("java.tooling",
+                                    "Eclipse JDT/PDE tooling registered (13 tools)");
+                        }
+
+                        @Override
+                        public void stop() {
+                            DCodeLog.info("java.tooling", "Eclipse JDT/PDE tooling stopped");
+                        }
+                    });
+            try {
+                lifecycle.startThrough(LifecycleStage.TOOLING);
+            } catch (Exception e) {
+                DCodeLog.error("java.tooling", "Failed to advance lifecycle to TOOLING", e);
+            }
+        } catch (Throwable e) {
+            // Headless runtimes without an initialized Eclipse workspace cannot host
+            // JDT: tool registration must never prevent the runtime from starting.
+            DCodeLog.error("java.tooling",
+                    "JDT/PDE tooling unavailable in this runtime: " + e.getMessage());
         }
     }
 

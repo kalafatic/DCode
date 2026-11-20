@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: DCode Tests
 Bundle-SymbolicName: eu.kalafatic.dcode.tests
-Bundle-Version: 0.1.0.qualifier
+Bundle-Version: 2.6.11.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Require-Bundle: junit-jupiter-api;bundle-version="[5.10.2,6.0.0)",
  junit-jupiter-engine;bundle-version="[5.10.2,6.0.0)",
@@ -18,15 +18,15 @@ Require-Bundle: junit-jupiter-api;bundle-version="[5.10.2,6.0.0)",
  org.eclipse.ui;bundle-version="3.205.0",
  org.eclipse.jface;bundle-version="3.33.0",
  org.eclipse.swt;bundle-version="3.125.0",
- eu.kalafatic.dcode.core;bundle-version="0.1.0",
- eu.kalafatic.dcode.repositories;bundle-version="0.1.0",
- eu.kalafatic.dcode.config;bundle-version="0.1.0",
- eu.kalafatic.dcode.harness;bundle-version="0.1.0",
- eu.kalafatic.dcode.persistence;bundle-version="0.1.0",
- eu.kalafatic.dcode.client;bundle-version="0.1.0",
- eu.kalafatic.dcode.ui;bundle-version="0.1.0",
- eu.kalafatic.dcode.java.tooling;bundle-version="0.1.0",
- eu.kalafatic.dcode.server;bundle-version="0.1.0"
+ eu.kalafatic.dcode.core;bundle-version="2.6.11",
+ eu.kalafatic.dcode.repositories;bundle-version="2.6.11",
+ eu.kalafatic.dcode.config;bundle-version="2.6.11",
+ eu.kalafatic.dcode.harness;bundle-version="2.6.11",
+ eu.kalafatic.dcode.persistence;bundle-version="2.6.11",
+ eu.kalafatic.dcode.client;bundle-version="2.6.11",
+ eu.kalafatic.dcode.ui;bundle-version="2.6.11",
+ eu.kalafatic.dcode.java.tooling;bundle-version="2.6.11",
+ eu.kalafatic.dcode.server;bundle-version="2.6.11"
 Export-Package: eu.kalafatic.dcode.tests
 Bundle-ClassPath: .,
  lib/nanohttpd-2.3.1.jar

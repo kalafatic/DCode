@@ -2,12 +2,12 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: DCode Client
 Bundle-SymbolicName: eu.kalafatic.dcode.client;singleton:=true
-Bundle-Version: 0.1.0.qualifier
+Bundle-Version: 2.6.11.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-Vendor: Kalafatic
 Bundle-ActivationPolicy: lazy
 Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
-Require-Bundle: eu.kalafatic.dcode.core;bundle-version="0.1.0"
+Require-Bundle: eu.kalafatic.dcode.core;bundle-version="2.6.11"
 Import-Package: org.osgi.framework;version="[1.10.0,2.0.0)"
 Bundle-ClassPath: .,
  lib/jackson-annotations-2.20.jar,

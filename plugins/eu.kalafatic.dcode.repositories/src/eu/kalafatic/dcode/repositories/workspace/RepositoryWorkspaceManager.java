@@ -25,8 +25,16 @@ public final class RepositoryWorkspaceManager {
         this.engine = Objects.requireNonNull(engine, "engine");
     }
 
-    /** Returns the working directory of a repository within a workspace. */
+    /**
+     * Returns the working directory of a repository within a workspace. A registered
+     * explicit {@code localPath} always wins (e.g. the workspace root itself when the
+     * folder IS the repository); otherwise the repository gets a dedicated directory
+     * named after it inside the workspace root.
+     */
     public Path repositoryDir(Workspace workspace, RepositoryRef repository) {
+        if (repository.localPath() != null && !repository.localPath().isBlank()) {
+            return Path.of(repository.localPath());
+        }
         return Path.of(workspace.rootPath(), repository.name());
     }
 

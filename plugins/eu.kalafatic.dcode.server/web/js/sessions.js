@@ -52,11 +52,20 @@ window.DCodeSessions = (function () {
                 const empty = document.createElement('div');
                 empty.className = 'empty-note';
                 empty.style.padding = '10px';
-                empty.textContent = 'No sessions yet.';
+                empty.textContent = 'No sessions yet. Use "New session" to start one.';
                 list.appendChild(empty);
             }
         } catch (e) {
-            DCodeApp.logConsole('error', 'sessions: ' + e.message);
+            const error = document.createElement('div');
+            error.className = 'warning-box';
+            error.textContent = 'Sessions could not be loaded.';
+            list.appendChild(error);
+            const retry = document.createElement('button');
+            retry.className = 'btn btn-small';
+            retry.textContent = 'Retry';
+            retry.onclick = () => load(list);
+            list.appendChild(retry);
+            DCodeApp.reportError('list sessions', e);
         }
     }
 

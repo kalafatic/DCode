@@ -9,8 +9,14 @@ window.DCodeExplorer = (function () {
     async function render(container) {
         root = container;
         container.innerHTML = '';
+        const loading = document.createElement('div');
+        loading.className = 'empty-note';
+        loading.style.padding = '10px';
+        loading.textContent = 'Loading workspaces…';
+        container.appendChild(loading);
         try {
             const workspaces = await DCodeApi.get('/api/v1/workspaces');
+            container.innerHTML = '';
             if (!workspaces || workspaces.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'empty-note';
@@ -31,7 +37,28 @@ window.DCodeExplorer = (function () {
             }
             container.appendChild(ul);
         } catch (e) {
-            DCodeApp.logConsole('error', 'explorer: ' + e.message);
+            container.innerHTML = '';
+            const error = document.createElement('div');
+            error.className = 'warning-box';
+            error.textContent = 'Workspaces could not be loaded.';
+            container.appendChild(error);
+            const detail = document.createElement('div');
+            detail.className = 'muted mono';
+            detail.style.padding = '6px 10px';
+            detail.textContent = e.status ? 'HTTP ' + e.status : e.message;
+            container.appendChild(detail);
+            const retry = document.createElement('button');
+            retry.className = 'btn';
+            retry.style.margin = '6px 10px';
+            retry.textContent = 'Retry';
+            retry.onclick = () => render(container);
+            container.appendChild(retry);
+            const conn = document.createElement('button');
+            conn.className = 'btn';
+            conn.textContent = 'Connection details';
+            conn.onclick = () => DCodeApp.openModal('connection-details');
+            container.appendChild(conn);
+            DCodeApp.reportError('list workspaces', e);
         }
     }
 

@@ -12,6 +12,10 @@ import eu.kalafatic.dcode.core.model.SessionState;
 import eu.kalafatic.dcode.core.model.Workspace;
 import eu.kalafatic.dcode.core.model.WorkspaceMode;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -55,7 +60,7 @@ public final class DCodeApiClient {
     }
 
     public CompletableFuture<JsonNode> health() {
-        return get("/api/v1/health");
+        return send("GET", "/api/v1/health", null, Duration.ofSeconds(8));
     }
 
     // ---- workspaces / repositories ----
@@ -226,7 +231,7 @@ public final class DCodeApiClient {
         return post("/api/v1/reviews/" + reviewId + "/reject", body);
     }
 
-    // ---- providers / models / tools ----
+    // ---- providers / runtimes / models / tools ----
 
     public CompletableFuture<JsonNode> providers() {
         return get("/api/v1/providers");
@@ -236,12 +241,373 @@ public final class DCodeApiClient {
         return get("/api/v1/models");
     }
 
+    public CompletableFuture<JsonNode> models(String runtimeId) {
+        return get("/api/v1/models?runtimeId=" + urlEncode(runtimeId));
+    }
+
     public CompletableFuture<JsonNode> tools() {
         return get("/api/v1/tools");
     }
 
     public CompletableFuture<JsonNode> testProvider(String providerId) {
         return post("/api/v1/providers/" + providerId + "/test", mapper.createObjectNode());
+    }
+
+    // ---- runtime management ----
+
+    public CompletableFuture<JsonNode> runtimes() {
+        return get("/api/v1/runtimes");
+    }
+
+    public CompletableFuture<JsonNode> runtime(String runtimeId) {
+        return get("/api/v1/runtimes/" + runtimeId);
+    }
+
+    public CompletableFuture<JsonNode> createRuntime(String name, String type,
+                                                      String endpoint, String authToken,
+                                                      String apiKey) {
+        ObjectNode body = mapper.createObjectNode();
+        if (name != null && !name.isBlank()) {
+            body.put("name", name);
+        }
+        body.put("type", type);
+        body.put("endpoint", endpoint);
+        if (authToken != null && !authToken.isBlank()) {
+            body.put("authToken", authToken);
+        }
+        if (apiKey != null && !apiKey.isBlank()) {
+            body.put("apiKey", apiKey);
+        }
+        return post("/api/v1/runtimes", body);
+    }
+
+    public CompletableFuture<JsonNode> updateRuntime(String runtimeId, String name,
+                                                      String endpoint, String authToken,
+                                                      String apiKey) {
+        ObjectNode body = mapper.createObjectNode();
+        if (name != null) {
+            body.put("name", name);
+        }
+        if (endpoint != null) {
+            body.put("endpoint", endpoint);
+        }
+        if (authToken != null) {
+            body.put("authToken", authToken);
+        }
+        if (apiKey != null) {
+            body.put("apiKey", apiKey);
+        }
+        return post("/api/v1/runtimes/" + runtimeId, body);
+    }
+
+    public CompletableFuture<JsonNode> deleteRuntime(String runtimeId) {
+        return delete("/api/v1/runtimes/" + runtimeId);
+    }
+
+    public CompletableFuture<JsonNode> testRuntime(String runtimeId) {
+        return post("/api/v1/runtimes/" + runtimeId + "/test", mapper.createObjectNode());
+    }
+
+    /** Connection preflight for a runtime that is not saved yet (credentials not stored). */
+    public CompletableFuture<JsonNode> preflightRuntime(String type, String endpoint,
+                                                        String authToken, String apiKey) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("type", type);
+        body.put("endpoint", endpoint);
+        if (authToken != null && !authToken.isBlank()) {
+            body.put("authToken", authToken);
+        }
+        if (apiKey != null && !apiKey.isBlank()) {
+            body.put("apiKey", apiKey);
+        }
+        return post("/api/v1/runtimes/preflight", body);
+    }
+
+    /** Scans local endpoints for inference services (DCode, ENR, Ollama, OpenAI). */
+    public CompletableFuture<JsonNode> scanRuntimes(List<String> endpoints) {
+        ObjectNode body = mapper.createObjectNode();
+        if (endpoints != null && !endpoints.isEmpty()) {
+            ArrayNode array = body.putArray("endpoints");
+            endpoints.forEach(array::add);
+        }
+        return post("/api/v1/runtimes/scan", body);
+    }
+
+    /** Coding harnesses known to the backend (availability + integration status). */
+    public CompletableFuture<JsonNode> harnesses() {
+        return get("/api/v1/harnesses");
+    }
+
+    // ---- agents ----
+
+    public CompletableFuture<JsonNode> agents() {
+        return get("/api/v1/agents");
+    }
+
+    public CompletableFuture<JsonNode> saveAgent(String id, String name, String description,
+                                                 String role, String systemInstructions) {
+        ObjectNode body = mapper.createObjectNode();
+        if (id != null && !id.isBlank()) {
+            body.put("id", id);
+        }
+        body.put("name", name == null ? "" : name);
+        body.put("description", description == null ? "" : description);
+        body.put("role", role == null ? "MAIN" : role);
+        body.put("systemInstructions", systemInstructions == null ? ""
+                : systemInstructions);
+        return post("/api/v1/agents", body);
+    }
+
+    public CompletableFuture<JsonNode> deleteAgent(String agentId) {
+        return delete("/api/v1/agents/" + agentId);
+    }
+
+    public CompletableFuture<JsonNode> setDefaultAgent(String agentId) {
+        return post("/api/v1/agents/" + agentId + "/default", mapper.createObjectNode());
+    }
+
+    // ---- port & network monitor ----
+
+    public CompletableFuture<JsonNode> ports() {
+        return get("/api/v1/ports");
+    }
+
+    public CompletableFuture<JsonNode> setRuntimeEnabled(String runtimeId, boolean enabled) {
+        return post("/api/v1/runtimes/" + runtimeId + "/"
+                + (enabled ? "enable" : "disable"), mapper.createObjectNode());
+    }
+
+    public CompletableFuture<JsonNode> setDefaultRuntime(String runtimeId, String modelId) {
+        ObjectNode body = mapper.createObjectNode();
+        if (modelId != null && !modelId.isBlank()) {
+            body.put("modelId", modelId);
+        }
+        return post("/api/v1/runtimes/" + runtimeId + "/default", body);
+    }
+
+    public CompletableFuture<JsonNode> runtimeModels(String runtimeId) {
+        return get("/api/v1/runtimes/" + runtimeId + "/models");
+    }
+
+    public CompletableFuture<JsonNode> modelAction(String runtimeId, String modelId,
+                                                   String action) {
+        return post("/api/v1/runtimes/" + runtimeId + "/models/"
+                + urlEncode(modelId) + "/" + action, mapper.createObjectNode());
+    }
+
+    // ---- direct inference chat (no coding task involved) ----
+
+    public CompletableFuture<JsonNode> inferenceChat(String runtimeId, String model,
+                                                     List<Map<String, String>> messages,
+                                                     double temperature, int maxTokens) {
+        ObjectNode body = mapper.createObjectNode();
+        if (runtimeId != null && !runtimeId.isBlank()) {
+            body.put("runtimeId", runtimeId);
+        }
+        body.put("model", model);
+        ArrayNode messageArray = body.putArray("messages");
+        for (Map<String, String> message : messages) {
+            ObjectNode entry = messageArray.addObject();
+            entry.put("role", message.getOrDefault("role", "user"));
+            entry.put("content", message.getOrDefault("content", ""));
+        }
+        if (temperature > 0) {
+            body.put("temperature", temperature);
+        }
+        if (maxTokens > 0) {
+            body.put("maxTokens", maxTokens);
+        }
+        return post("/api/v1/inference/chat", body);
+    }
+
+    /** Listener of one streamed direct inference generation. */
+    public interface InferenceStreamListener {
+        void onStart(String requestId, String runtimeId, String model);
+
+        void onToken(String token);
+
+        void onDone(JsonNode result);
+
+        void onError(String message);
+    }
+
+    /** Handle to an active streamed generation. */
+    public interface InferenceStreamSession {
+        String requestId();
+
+        void cancel();
+    }
+
+    /**
+     * Streams one direct inference generation. Frames are parsed on a background
+     * thread; the returned session allows cancellation (closes the HTTP stream).
+     */
+    public InferenceStreamSession streamInference(String runtimeId, String model,
+                                                  List<Map<String, String>> messages,
+                                                  double temperature, int maxTokens,
+                                                  InferenceStreamListener listener) {
+        ObjectNode body = mapper.createObjectNode();
+        if (runtimeId != null && !runtimeId.isBlank()) {
+            body.put("runtimeId", runtimeId);
+        }
+        body.put("model", model);
+        ArrayNode messageArray = body.putArray("messages");
+        for (Map<String, String> message : messages) {
+            ObjectNode entry = messageArray.addObject();
+            entry.put("role", message.getOrDefault("role", "user"));
+            entry.put("content", message.getOrDefault("content", ""));
+        }
+        if (temperature > 0) {
+            body.put("temperature", temperature);
+        }
+        if (maxTokens > 0) {
+            body.put("maxTokens", maxTokens);
+        }
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl
+                        + "/api/v1/inference/chat/stream"))
+                .timeout(Duration.ofMinutes(30))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
+        if (authToken != null) {
+            builder.header("Authorization", "Bearer " + authToken);
+        }
+        java.util.concurrent.atomic.AtomicReference<InputStream> bodyRef =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicBoolean cancelled =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        http.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofInputStream())
+                .whenComplete((response, throwable) -> {
+                    if (throwable != null) {
+                        listener.onError("Stream request failed: "
+                                + throwable.getMessage());
+                        return;
+                    }
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                        String message;
+                        try {
+                            JsonNode errorPayload = mapper.readTree(
+                                    response.body().readAllBytes());
+                            message = errorPayload.path("message").asText(
+                                    "HTTP " + response.statusCode());
+                        } catch (Exception e) {
+                            message = "HTTP " + response.statusCode();
+                        }
+                        listener.onError(message);
+                        return;
+                    }
+                    bodyRef.set(response.body());
+                    Thread reader = new Thread(() -> {
+                        try {
+                            readSseFrames(response.body(), listener, cancelled,
+                                    bodyRef);
+                        } catch (IOException e) {
+                            if (!cancelled.get()) {
+                                listener.onError("Stream read failed: " + e.getMessage());
+                            }
+                        }
+                    }, "dcode-inference-stream");
+                    reader.setDaemon(true);
+                    reader.start();
+                });
+        return new InferenceStreamSession() {
+            private final java.util.concurrent.atomic.AtomicReference<String> requestId =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+
+            @Override
+            public String requestId() {
+                return requestId.get();
+            }
+
+            @Override
+            public void cancel() {
+                cancelled.set(true);
+                InputStream stream = bodyRef.get();
+                if (stream != null) {
+                    try {
+                        stream.close();
+                    } catch (Exception ignored) {
+                        // best effort abort
+                    }
+                }
+            }
+        };
+    }
+
+    /** Cancels a streamed generation through the backend cancel endpoint. */
+    public CompletableFuture<JsonNode> cancelInference(String requestId) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("requestId", requestId);
+        return post("/api/v1/inference/cancel", body);
+    }
+
+    private static void readSseFrames(InputStream body, InferenceStreamListener listener,
+                                      java.util.concurrent.atomic.AtomicBoolean cancelled,
+                                      java.util.concurrent.atomic.AtomicReference<InputStream> bodyRef)
+            throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(body,
+                java.nio.charset.StandardCharsets.UTF_8))) {
+            String line;
+            String event = "";
+            StringBuilder data = new StringBuilder();
+            while (!cancelled.get() && (line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    if (data.length() > 0 || !event.isEmpty()) {
+                        deliver(event, data.toString(), listener);
+                    }
+                    event = "";
+                    data.setLength(0);
+                    continue;
+                }
+                if (line.startsWith(":")) {
+                    continue;
+                }
+                int colon = line.indexOf(':');
+                String field = colon < 0 ? line : line.substring(0, colon);
+                String value = colon < 0 ? "" : line.substring(colon + 1);
+                if (value.startsWith(" ")) {
+                    value = value.substring(1);
+                }
+                switch (field) {
+                    case "event" -> event = value;
+                    case "data" -> {
+                        if (!data.isEmpty()) {
+                            data.append('\n');
+                        }
+                        data.append(value);
+                    }
+                    default -> {
+                    }
+                }
+            }
+        }
+    }
+
+    private static void deliver(String event, String data, InferenceStreamListener listener) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            if ("error".equals(event)) {
+                JsonNode node = mapper.readTree(data);
+                listener.onError(node.path("message").asText("Inference failed"));
+                return;
+            }
+            JsonNode node = mapper.readTree(data);
+            if ("start".equals(event)) {
+                listener.onStart(node.path("requestId").asText(""),
+                        node.path("runtimeId").asText(""), node.path("model").asText(""));
+                return;
+            }
+            if ("done".equals(event)) {
+                listener.onDone(node);
+                return;
+            }
+            String token = node.path("token").asText(null);
+            if (token != null) {
+                listener.onToken(token);
+            }
+        } catch (Exception e) {
+            listener.onError("Invalid stream frame: " + e.getMessage());
+        }
     }
 
     /** Executes a registered tool through the backend ToolEngine. */
@@ -281,10 +647,16 @@ public final class DCodeApiClient {
     }
 
     private CompletableFuture<JsonNode> send(String method, String path, JsonNode body) {
+        return send(method, path, body, null);
+    }
+
+    private CompletableFuture<JsonNode> send(String method, String path, JsonNode body,
+                                             Duration requestTimeout) {
         CompletableFuture<JsonNode> result = new CompletableFuture<>();
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                    .timeout(Duration.ofMinutes(30));
+                    .timeout(requestTimeout != null ? requestTimeout
+                            : Duration.ofMinutes(30));
             if (authToken != null) {
                 builder.header("Authorization", "Bearer " + authToken);
             }

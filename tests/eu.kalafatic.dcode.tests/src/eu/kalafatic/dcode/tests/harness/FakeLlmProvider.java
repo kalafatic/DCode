@@ -14,7 +14,7 @@ import java.util.List;
  * Deterministic scripted LLM provider for harness tests. Responses are consumed in
  * order; the last response repeats when the queue is exhausted.
  */
-public final class FakeLlmProvider implements LlmProvider {
+public class FakeLlmProvider implements LlmProvider {
 
     private final Deque<String> responses = new ArrayDeque<>();
     private final boolean throwing;
@@ -22,6 +22,11 @@ public final class FakeLlmProvider implements LlmProvider {
 
     public FakeLlmProvider(String... scriptedResponses) {
         this("fake", false, scriptedResponses);
+    }
+
+    /** A fake provider with an explicit runtime instance identity. */
+    public static FakeLlmProvider withId(String id, String... scriptedResponses) {
+        return new FakeLlmProvider(id, false, scriptedResponses);
     }
 
     private FakeLlmProvider(String id, boolean throwing, String... scriptedResponses) {

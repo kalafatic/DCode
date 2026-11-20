@@ -3,7 +3,7 @@
 <product name="DCode" uid="eu.kalafatic.dcode.ui.rcp"
          id="eu.kalafatic.dcode.ui.rcp"
          application="eu.kalafatic.dcode.ui.application"
-         version="0.1.0.qualifier" useFeatures="true"
+         version="2.6.11.qualifier" useFeatures="true"
          includeLaunchers="true">
 
    <aboutInfo>
@@ -32,5 +32,15 @@
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="4"/>
       <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2"/>
       <plugin id="org.eclipse.equinox.event" autoStart="true" startLevel="2"/>
+      <plugin id="eu.kalafatic.dcode.core" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.config" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.client" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.repositories" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.harness" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.persistence" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.java.tooling" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.server" autoStart="true" startLevel="4"/>
+      <plugin id="eu.kalafatic.dcode.ui" autoStart="true" startLevel="4"/>
+      <plugin id="org.eclipse.equinox.security" autoStart="true" startLevel="4"/>
    </configurations>
 </product>

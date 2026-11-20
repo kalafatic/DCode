@@ -56,6 +56,8 @@ public final class HarnessActivator implements BundleActivator {
     private ServiceRegistration<SessionExecutor> sessionExecutorRegistration;
     private ServiceRegistration<ReviewService> reviewServiceRegistration;
     private ServiceRegistration<ToolEngine> toolEngineRegistration;
+    private ServiceRegistration<eu.kalafatic.dcode.harness.registry.HarnessRegistry>
+            harnessRegistryRegistration;
     private DynamicServiceLookup services;
     private ServiceAvailabilityGate gate;
     private InMemorySessionService fallbackSessionService;
@@ -146,6 +148,9 @@ public final class HarnessActivator implements BundleActivator {
         // web interface; tools are never executed outside this engine.
         toolEngineRegistration = context.registerService(ToolEngine.class,
                 toolEngine, null);
+        harnessRegistryRegistration = context.registerService(
+                eu.kalafatic.dcode.harness.registry.HarnessRegistry.class,
+                new eu.kalafatic.dcode.harness.registry.DefaultHarnessRegistry(), null);
 
         lifecycle.registerAction(LifecycleStage.HARNESS, "harness-services",
                 new DCodeLifecycle.LifecycleAction() {
@@ -184,6 +189,9 @@ public final class HarnessActivator implements BundleActivator {
         if (toolEngineRegistration != null) {
             toolEngineRegistration.unregister();
         }
+        if (harnessRegistryRegistration != null) {
+            harnessRegistryRegistration.unregister();
+        }
         if (services != null) {
             services.close();
         }
@@ -195,6 +203,7 @@ public final class HarnessActivator implements BundleActivator {
         sessionExecutorRegistration = null;
         reviewServiceRegistration = null;
         toolEngineRegistration = null;
+        harnessRegistryRegistration = null;
         fallbackSessionService = null;
     }
 }

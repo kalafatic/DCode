@@ -4,18 +4,29 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import eu.kalafatic.dcode.config.model.ModelDefinition;
+import eu.kalafatic.dcode.config.runtime.RuntimeAdapter;
+import eu.kalafatic.dcode.config.runtime.RuntimeCapabilities;
+import eu.kalafatic.dcode.config.runtime.RuntimeStatus;
+import eu.kalafatic.dcode.config.runtime.RuntimeType;
+import eu.kalafatic.dcode.config.runtime.StreamHandle;
+import eu.kalafatic.dcode.config.runtime.StreamListener;
+import eu.kalafatic.dcode.config.runtime.StreamResult;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 
 /**
- * Ollama provider ({@code /api/chat} chat API, {@code /api/tags} model discovery).
- * Local inference endpoint by default; the endpoint is configurable.
+ * Ollama adapter ({@code /api/chat} chat API incl. SSE streaming, {@code /api/tags}
+ * model discovery, {@code /api/pull} model download, {@code /api/version} runtime
+ * status). Local inference endpoint by default; the endpoint is configurable.
+ *
+ * <p>Ollama loads models lazily; the adapter does not falsely advertise explicit
+ * load/unload operations.</p>
  */
-public final class OllamaProvider implements LlmProvider {
+public final class OllamaProvider implements RuntimeAdapter {
 
     public static final String DEFAULT_BASE_URL = "http://127.0.0.1:11434";
 
@@ -27,7 +38,7 @@ public final class OllamaProvider implements LlmProvider {
 
     public OllamaProvider(String providerId, String displayName, String baseUrl,
                           Duration timeout) {
-        this.providerId = Objects.requireNonNull(providerId, "providerId");
+        this.providerId = java.util.Objects.requireNonNull(providerId, "providerId");
         this.displayName = displayName != null ? displayName : "Ollama";
         this.baseUrl = baseUrl != null && !baseUrl.isBlank() ? baseUrl : DEFAULT_BASE_URL;
         this.timeout = timeout != null ? timeout : Duration.ofMinutes(5);
@@ -36,6 +47,21 @@ public final class OllamaProvider implements LlmProvider {
 
     public static OllamaProvider localDefault() {
         return new OllamaProvider("ollama", "Ollama", DEFAULT_BASE_URL, null);
+    }
+
+    @Override
+    public String id() {
+        return providerId;
+    }
+
+    @Override
+    public RuntimeType type() {
+        return RuntimeType.OLLAMA;
+    }
+
+    @Override
+    public String endpoint() {
+        return baseUrl;
     }
 
     @Override
@@ -59,6 +85,14 @@ public final class OllamaProvider implements LlmProvider {
     }
 
     @Override
+    public RuntimeCapabilities capabilities() {
+        // No explicit load/unload API: Ollama loads models lazily on first request.
+        return new RuntimeCapabilities(true, true, true, false, false, true, true, true,
+                Set.of("OLLAMA_CHAT", "OLLAMA_STREAMING", "OLLAMA_MODEL_DISCOVERY",
+                        "OLLAMA_MODEL_PULL"));
+    }
+
+    @Override
     public List<ModelDefinition> listModels() {
         JsonNode root = http.getJson(baseUrl + "/api/tags", Duration.ofSeconds(20));
         JsonNode models = root.path("models");
@@ -72,7 +106,13 @@ public final class OllamaProvider implements LlmProvider {
                 continue;
             }
             boolean chatCapable = isChatCapable(model);
-            result.add(new ModelDefinition(name, name, providerId, 0, chatCapable));
+            long sizeBytes = model.path("size").asLong(0);
+            JsonNode details = model.path("details");
+            String quantization = details.path("quantization_level").asText("");
+            String family = details.path("family").asText("");
+            Set<String> capabilities = modelCapabilities(model);
+            result.add(new ModelDefinition(name, name, providerId, 0, chatCapable,
+                    sizeBytes, quantization, false, capabilities));
         }
         return result;
     }
@@ -97,6 +137,19 @@ public final class OllamaProvider implements LlmProvider {
         return false;
     }
 
+    private static Set<String> modelCapabilities(JsonNode model) {
+        Set<String> result = new LinkedHashSet<>();
+        JsonNode capabilities = model.path("capabilities");
+        if (capabilities.isArray()) {
+            for (JsonNode capability : capabilities) {
+                if (!capability.asText("").isBlank()) {
+                    result.add(capability.asText(""));
+                }
+            }
+        }
+        return result;
+    }
+
     @Override
     public ConnectionTestResult testConnection() {
         try {
@@ -105,6 +158,18 @@ public final class OllamaProvider implements LlmProvider {
                     + " model(s) published");
         } catch (ProviderException e) {
             return ConnectionTestResult.error(e.getMessage());
+        }
+    }
+
+    @Override
+    public RuntimeStatus runtimeStatus() {
+        try {
+            JsonNode version = http.getJson(baseUrl + "/api/version", Duration.ofSeconds(10));
+            String versionText = version.path("version").asText("");
+            return RuntimeStatus.ok(versionText.isBlank() ? "reachable"
+                    : "version " + versionText);
+        } catch (ProviderException e) {
+            return RuntimeStatus.failed(e.getMessage());
         }
     }
 
@@ -127,8 +192,95 @@ public final class OllamaProvider implements LlmProvider {
         return new ChatResponse(content, finish, promptTokens, completionTokens);
     }
 
+    @Override
+    public StreamHandle stream(ChatRequest request, StreamListener listener) {
+        ObjectNode body = writeValue(request);
+        body.put("stream", true);
+        ObjectNode options = body.putObject("options");
+        if (request.temperature() > 0) {
+            options.put("temperature", request.temperature());
+        }
+        if (request.maxTokens() > 0) {
+            options.put("num_predict", request.maxTokens());
+        }
+        StringBuilder content = new StringBuilder();
+        return http.streamLines(baseUrl + "/api/chat", http.write(body), timeout,
+                new HttpLlmSupport.LineHandler() {
+                    private String finishReason;
+                    private int promptTokens;
+                    private int completionTokens;
+
+                    @Override
+                    public void onLine(String line) {
+                        try {
+                            JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
+                                    .readTree(line);
+                            JsonNode message = node.path("message");
+                            if (message.isMissingNode() || message.isNull()) {
+                                return;
+                            }
+                            String chunk = message.path("content").asText("");
+                            if (!chunk.isEmpty()) {
+                                content.append(chunk);
+                                listener.onToken(chunk);
+                            }
+                            if (node.path("done").asBoolean(false)) {
+                                finishReason = node.path("done_reason").asText(null);
+                                promptTokens = node.path("prompt_eval_count").asInt(0);
+                                completionTokens = node.path("eval_count").asInt(0);
+                            }
+                        } catch (Exception ignored) {
+                            // non-JSON line: ignore
+                        }
+                    }
+
+                    @Override
+                    public void onFinished() {
+                        listener.onComplete(new StreamResult(new ChatResponse(
+                                content.toString(), finishReason != null ? finishReason
+                                : "stop", promptTokens, completionTokens), false, null));
+                    }
+
+                    @Override
+                    public void onCancelled() {
+                        listener.onComplete(StreamResult.cancelled(content.toString()));
+                    }
+
+                    @Override
+                    public void onFailure(ProviderException error) {
+                        listener.onError(error);
+                    }
+                });
+    }
+
+    @Override
+    public ModelDefinition pullModel(String modelId) {
+        ObjectNode body = new ObjectNode(
+                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
+        body.put("name", modelId);
+        body.put("stream", false);
+        JsonNode response = http.postJson(baseUrl + "/api/pull", http.write(body),
+                Duration.ofHours(1));
+        String status = response.path("status").asText("");
+        if (!"success".equalsIgnoreCase(status) && response.path("error").isValueNode()) {
+            throw new ProviderException("Ollama pull failed: "
+                    + response.path("error").asText(status));
+        }
+        return findModel(modelId).orElseGet(() -> new ModelDefinition(modelId, modelId,
+                providerId, 0, true));
+    }
+
+    private java.util.Optional<ModelDefinition> findModel(String modelId) {
+        try {
+            return listModels().stream().filter(m -> m.id().equals(modelId)).findFirst();
+        } catch (ProviderException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
     private ObjectNode writeValue(ChatRequest request) {
-        ObjectNode body = new ObjectNode(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
+        ObjectNode body = new ObjectNode(
+                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
         body.put("model", request.model());
         ArrayNode messages = body.putArray("messages");
         for (ChatMessage message : request.messages()) {

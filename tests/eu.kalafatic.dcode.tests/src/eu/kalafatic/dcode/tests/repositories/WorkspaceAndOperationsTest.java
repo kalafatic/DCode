@@ -124,6 +124,24 @@ class WorkspaceAndOperationsTest {
     }
 
     @Test
+    void repositoryDirRespectsExplicitLocalPath() {
+        Path root = temp.resolve("wsroot4");
+        Workspace ws = workspaceService.createWorkspace("localpath", WorkspaceMode.LOCAL,
+                root.toString());
+        // The common RCP case: the workspace root itself IS the repository.
+        RepositoryRef rootRepo = new RepositoryRef("r1", "repo-at-root", root.toString(),
+                null, "master", RepositoryAccessPolicy.READ_WRITE, Instant.now());
+        assertEquals(root.toAbsolutePath().normalize(),
+                workspaceManager.repositoryDir(ws, rootRepo).toAbsolutePath().normalize());
+
+        // Without an explicit path, the legacy root/name convention still applies.
+        RepositoryRef named = new RepositoryRef("r2", "sub", "", null, "master",
+                RepositoryAccessPolicy.READ_WRITE, Instant.now());
+        assertEquals(root.resolve("sub").toAbsolutePath().normalize(),
+                workspaceManager.repositoryDir(ws, named).toAbsolutePath().normalize());
+    }
+
+    @Test
     void writableRepositoryAllowsCommit() throws Exception {
         Path root = temp.resolve("wsroot3");
         Workspace ws = workspaceService.createWorkspace("rw", WorkspaceMode.LOCAL,

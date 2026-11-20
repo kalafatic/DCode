@@ -47,6 +47,6 @@ public record CoreConfiguration(
                 0,
                 "127.0.0.1",
                 "dcode-node-01",
-                "0.1.0");
+                "2.6.11");
     }
 }

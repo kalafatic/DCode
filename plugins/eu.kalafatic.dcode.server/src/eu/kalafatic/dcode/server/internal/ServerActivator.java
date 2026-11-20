@@ -1,6 +1,7 @@
 package eu.kalafatic.dcode.server.internal;
 
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
+import eu.kalafatic.dcode.config.runtime.RuntimeRegistry;
 import eu.kalafatic.dcode.core.config.ConfigurationService;
 import eu.kalafatic.dcode.core.event.EventBus;
 import eu.kalafatic.dcode.core.lifecycle.DCodeLifecycle;
@@ -38,7 +39,8 @@ public final class ServerActivator implements BundleActivator {
         this.context = context;
         gate = new ServiceAvailabilityGate(context, new Class<?>[]{
                 EventBus.class, DCodeLifecycle.class, ConfigurationService.class,
-                ProviderRegistry.class, ToolRegistry.class, SessionExecutor.class},
+                ProviderRegistry.class, RuntimeRegistry.class, ToolRegistry.class,
+                SessionExecutor.class},
                 this::wire);
         gate.runIfAvailable();
     }
@@ -51,6 +53,8 @@ public final class ServerActivator implements BundleActivator {
                 context.getServiceReference(ConfigurationService.class));
         ProviderRegistry providers = context.getService(
                 context.getServiceReference(ProviderRegistry.class));
+        RuntimeRegistry runtimes = context.getService(
+                context.getServiceReference(RuntimeRegistry.class));
         ToolRegistry tools = context.getService(context.getServiceReference(ToolRegistry.class));
         SessionExecutor executor = context.getService(
                 context.getServiceReference(SessionExecutor.class));
@@ -62,10 +66,12 @@ public final class ServerActivator implements BundleActivator {
         Supplier<ReviewService> reviewSupplier = () -> services.get(ReviewService.class);
 
         DCodeApi api = new DCodeApi(sessionSupplier, workspaceSupplier, reviewSupplier,
-                providers, tools, executor, lifecycle, configuration, eventBus,
+                providers, runtimes, tools, executor, lifecycle, configuration, eventBus,
                 () -> services.get(eu.kalafatic.dcode.harness.tool.ToolEngine.class),
                 () -> services.get(eu.kalafatic.dcode.repositories.service.RepositoryOperations.class),
-                () -> services.get(eu.kalafatic.dcode.config.git.GitAccountManager.class));
+                () -> services.get(eu.kalafatic.dcode.config.git.GitAccountManager.class),
+                () -> services.get(eu.kalafatic.dcode.harness.registry.HarnessRegistry.class),
+                () -> services.get(eu.kalafatic.dcode.config.agent.AgentRegistry.class));
 
         lifecycle.registerAction(LifecycleStage.SERVER, "http-server",
                 new DCodeLifecycle.LifecycleAction() {
@@ -82,6 +88,7 @@ public final class ServerActivator implements BundleActivator {
                         server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
                         // published for ops tooling and runtime-verification tests
                         System.setProperty("dcode.server.port", String.valueOf(port));
+                        api.setHttpPortActual(port, bindAddress);
                         DCodeLog.info("server", "DCode HTTP API listening on "
                                 + bindAddress + ":" + port + " ("
                                 + (configuredPort > 0 ? "configured" : "allocated") + ")");

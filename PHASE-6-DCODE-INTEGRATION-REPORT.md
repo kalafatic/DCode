@@ -1,7 +1,7 @@
 # PHASE-6-DCODE-INTEGRATION-REPORT.md
 
 Phase 6 — DCode integration (native family coding harness)
-Repository: `/home/petr/git/DCoder-121126`
+Repository: `/home/petr/git/DCode-121126`
 Date: 2026-11-17
 
 ## Status summary

@@ -1,7 +1,7 @@
 # FHC 1.0 — Family Harness Contract
 
 **Status:** NORMATIVE (Phase 6)
-**Spec caretaker:** DCode (`/home/petr/git/DCoder-121126`)
+**Spec caretaker:** DCode (`/home/petr/git/DCode-121126`)
 **Related:** TEIP 1.1 (canonical copy in the EVO repository, `docs/protocol/TEIP-1.1.md`),
 ENR 1.0 (EVO repository, `docs/protocol/ENR-1.0.md`)
 

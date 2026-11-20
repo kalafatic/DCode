@@ -1,25 +1,33 @@
 package eu.kalafatic.dcode.core.port;
 
 /**
- * DCode port conventions (family pattern: tens digit identifies the product).
+ * DCode port conventions (family standard): {@code port = 8x80 + product offset},
+ * offsets: EVO +20000 (28xxx), TRYST +30000 (38xxx), DCode +40000 (48xxx),
+ * DStudio +50000 (58xxx). Spacing between services is 100.
  *
- * <p>EVO uses 28xxx, TRYST 38xxx; DCode occupies the 48xxx range. Proposed values pending
- * product-owner confirmation (see PHASE-5-ARCHITECTURE-BASELINE.md §4.5). Values are
- * defaults only; the configured value always wins and occupied ports fall back through the
- * allocator.</p>
+ * <p>Values are defaults only; the configured value always wins and occupied ports
+ * fall back through the allocator within the DCode family range. Actual assignments
+ * are reported by {@code GET /api/v1/ports} and published via
+ * {@code dcode.server.port}.</p>
  */
 public final class DCodePorts {
 
-    /** Primary HTTP server (REST + SSE + web UI). */
+    /** Product base offset (family standard). */
+    public static final int BASE_OFFSET = 40000;
+
+    /** Service spacing (family standard). */
+    public static final int SERVICE_SPACING = 100;
+
+    /** Primary HTTP server (REST + SSE + web UI). Original 8080, DCode 48080. */
     public static final int HTTP = 48080;
 
-    /** Management server. */
+    /** Management server (reserved; not started in the current build). */
     public static final int MANAGEMENT = 48380;
 
-    /** Auxiliary services. */
+    /** Auxiliary services (reserved). */
     public static final int AUX = 48680;
 
-    /** HTTP fallback search range size (48080..48080+RANGE-1). */
+    /** HTTP fallback search range size (48080..48080+RANGE-1, stays in 48xxx). */
     public static final int HTTP_FALLBACK_RANGE = 500;
 
     private DCodePorts() {

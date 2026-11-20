@@ -11,7 +11,7 @@ contracts, and the implementation roadmap.
 
 ## 1. Executive Summary
 
-- **DCode repo is empty of code.** `/home/petr/git/DCoder-121126` contains only `README.md`
+- **DCode repo is empty of code.** `/home/petr/git/DCode-121126` contains only `README.md`
   (no `.project`, no sources). DCode is a greenfield product and Phase 5 starts from the README
   contract (Java 21, Eclipse RCP/OSGi, Tycho, independent app + server, provider-independent
   LLM, extensible adapters).
@@ -50,7 +50,7 @@ contracts, and the implementation roadmap.
 | EVO (Evolution) | `/home/petr/git/evolution-121126` | Full RCP + headless platform; 33 Tycho modules; TEIP 1.1 server; CODER/DEVELOP; self-dev |
 | TRYST | `/home/petr/git/tryst-121126` | Full RCP + headless server; TEIP 1.1 client; MCP tool plane; harness SPI; OpenCode adapter |
 | DStudio | `/home/petr/git/DStudio-121126` | Skeleton (README only) — Phase 4 never implemented |
-| DCode | `/home/petr/git/DCoder-121126` | Skeleton (README only) — Phase 5 target |
+| DCode | `/home/petr/git/DCode-121126` | Skeleton (README only) — Phase 5 target |
 
 Family snapshots (`evolution-161126`, `tryst-161126`, older `evolution-*`, `tryst-*`) are
 pre-Phase-3 safety copies; the `-121126` repos are authoritative.
@@ -154,7 +154,7 @@ Key TRYST facts:
 
 ### 2.4 DCode / DStudio
 
-- `DCoder-121126`: `README.md` only. Contract in README: independent app+server, Java 21 /
+- `DCode-121126`: `README.md` only. Contract in README: independent app+server, Java 21 /
   RCP / Equinox / OSGi / Tycho, provider-independent LLM, concurrent isolated tasks, persistent
   state, extensible language/build adapters, no Spring/Node/Python/brokers.
 - `DStudio-121126`: `README.md` only (9 lines). No Phase 4 artifacts exist.

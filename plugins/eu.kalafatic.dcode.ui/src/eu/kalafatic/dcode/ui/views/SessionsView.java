@@ -4,7 +4,6 @@ import eu.kalafatic.dcode.core.model.Session;
 import eu.kalafatic.dcode.ui.RuntimeConnection;
 import eu.kalafatic.dcode.ui.Ui;
 import org.eclipse.jface.action.Action;
-import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Tree;
@@ -40,13 +39,46 @@ public final class SessionsView extends ViewPart implements Ui.Refreshable {
                 openSession(session);
             }
         });
+        hookContextMenu();
         refreshContent();
     }
 
     private void openSession(Session session) {
         RuntimeConnection.instance().setActiveSession(session);
         Ui.connectSessionStream(session);
-        Ui.log("Session " + session.getId() + " opened (" + session.getState() + ")");
+        Ui.log("session active: " + session.getId() + " (" + session.getState() + ")");
+    }
+
+    /** Context menu for session items: open, submit task, cancel, review changes. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            TreeItem[] selection = tree.getSelection();
+            if (selection.length == 0 || !(selection[0].getData() instanceof Session session)) {
+                return;
+            }
+            menu.add(new Action("Open") {
+                @Override
+                public void run() {
+                    openSession(session);
+                }
+            });
+            if (session.getState() == eu.kalafatic.dcode.core.model.SessionState.RUNNING) {
+                menu.add(new Action("Cancel execution") {
+                    @Override
+                    public void run() {
+                        Ui.run(RuntimeConnection.instance().api().cancelSession(
+                                        session.getId()),
+                                json -> Ui.log("info", "Cancellation requested for "
+                                        + session.getId()),
+                                "cancel session");
+                    }
+                });
+            }
+        });
+        tree.setMenu(manager.createContextMenu(tree));
     }
 
     private void openNewSessionDialog() {
@@ -55,11 +87,11 @@ public final class SessionsView extends ViewPart implements Ui.Refreshable {
                 Ui.log("error", "create a workspace first");
                 return;
             }
-            InputDialog titleDialog = new InputDialog(tree.getShell(), "New session",
-                    "Session title:", "Untitled session", null);
-            if (titleDialog.open() == org.eclipse.jface.dialogs.Dialog.OK) {
-                RuntimeConnection.instance().api().createSession(titleDialog.getValue(),
-                                workspaces.get(0).id(), null, null, null)
+            NewSessionDialog dialog = new NewSessionDialog(tree.getShell());
+            if (dialog.open() == org.eclipse.jface.dialogs.Dialog.OK) {
+                RuntimeConnection.instance().api().createSession(dialog.title(),
+                                workspaces.get(0).id(), dialog.runtimeId(),
+                                dialog.modelId(), null)
                         .whenComplete((session, throwable) -> Ui.async(() -> {
                             if (throwable != null) {
                                 Ui.log("error", "create session failed: "
@@ -77,12 +109,28 @@ public final class SessionsView extends ViewPart implements Ui.Refreshable {
     public void refreshContent() {
         Ui.async(() -> {
             tree.removeAll();
+            if (!RuntimeConnection.instance().isUsableForRequests()) {
+                TreeItem error = new TreeItem(tree, SWT.NONE);
+                error.setText("(backend connection " + RuntimeConnection.instance()
+                        .state().name() + " — open the Connection view to fix)");
+                return;
+            }
             Ui.run(RuntimeConnection.instance().api().listWorkspaces(), workspaces -> {
+                if (workspaces.isEmpty()) {
+                    TreeItem empty = new TreeItem(tree, SWT.NONE);
+                    empty.setText("(no workspaces — create one in the Workspace "
+                            + "Explorer)");
+                    return;
+                }
                 for (var workspace : workspaces) {
                     TreeItem workspaceItem = new TreeItem(tree, SWT.NONE);
                     workspaceItem.setText(workspace.name());
                     Ui.run(RuntimeConnection.instance().api().listSessions(workspace.id()),
                             sessions -> {
+                                if (sessions.isEmpty()) {
+                                    TreeItem empty = new TreeItem(workspaceItem, SWT.NONE);
+                                    empty.setText("(no sessions — \"New session…\")");
+                                }
                                 for (Session session : sessions) {
                                     TreeItem item = new TreeItem(workspaceItem, SWT.NONE);
                                     item.setText((session.getTitle() + "  ["

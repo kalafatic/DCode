@@ -486,6 +486,53 @@ td.sev-warning { color: var(--yellow); }
     color: var(--fg-2);
     padding: 8px 10px 4px;
 }
+
+/* ---------- direct inference chat ---------- */
+.direct-chat { display: flex; flex-direction: column; height: 100%; }
+.direct-chat-transcript {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    background: var(--bg-0);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.direct-chat-transcript .log-user { white-space: pre-wrap; word-break: break-word; }
+.direct-chat-stream { white-space: pre-wrap; word-break: break-word; }
+
+/* ---------- connection banner & structured console ---------- */
+.conn-banner {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.conn-banner-error { background: rgba(217, 102, 102, 0.16); color: #e0a1a1; }
+.conn-banner-warning { background: rgba(217, 184, 102, 0.12); color: var(--yellow); }
+.console-controls { display: flex; align-items: center; gap: 3px; padding: 3px 6px; }
+.console-chip {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg-2);
+    padding: 2px 7px;
+    font-size: 10.5px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--sans);
+    white-space: nowrap;
+}
+.console-chip:hover { color: var(--fg-0); border-color: var(--border); }
+.console-chip.active { color: var(--accent); border-color: var(--accent-dim); }
+.console-tag { font-weight: 600; font-size: 10.5px; letter-spacing: 0.3px; }
+.console-tag-error { color: var(--red); }
+.console-tag-warning { color: var(--yellow); }
+.console-tag-success { color: var(--green); }
+.console-tag-network, .console-tag-runtime, .console-tag-harness { color: var(--purple); }
+.console-tag-tool, .console-tag-task, .console-tag-inference, .console-tag-event { color: var(--accent); }
+.console-tag-debug, .console-tag-info, .console-tag-system { color: var(--fg-2); }
+
 .toolbar { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); align-items: center; flex: none; flex-wrap: wrap; }
 .toolbar .spacer { flex: 1; }
 .row { display: flex; gap: 8px; align-items: center; }

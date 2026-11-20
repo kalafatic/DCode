@@ -5,7 +5,7 @@ public final class DCodeVersion {
 
     public static final String APPLICATION_NAME = "DCode";
     public static final String APPLICATION_ID = "dcode";
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "2.6.11";
 
     private DCodeVersion() {
     }

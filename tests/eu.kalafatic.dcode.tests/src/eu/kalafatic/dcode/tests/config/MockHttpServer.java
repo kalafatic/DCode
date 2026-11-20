@@ -58,6 +58,17 @@ public final class MockHttpServer implements AutoCloseable {
         }
     }
 
+    /** Responds with an SSE body (chunked transfer; no Content-Length). */
+    public void respondSse(HttpExchange exchange, String sseText) throws IOException {
+        byte[] bytes = sseText.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(bytes);
+            out.flush();
+        }
+    }
+
     public List<Request> requests() {
         return List.copyOf(requests);
     }

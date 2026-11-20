@@ -2,7 +2,7 @@
 <feature
       id="eu.kalafatic.dcode.feature"
       label="DCode Feature"
-      version="0.1.0.qualifier"
+      version="2.6.11.qualifier"
       provider-name="Kalafatic">
 
    <description>
@@ -73,6 +73,18 @@
          unpack="false"/>
    <plugin
          id="eu.kalafatic.dcode.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="org.eclipse.equinox.security"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="org.eclipse.equinox.security.ui"
          download-size="0"
          install-size="0"
          version="0.0.0"

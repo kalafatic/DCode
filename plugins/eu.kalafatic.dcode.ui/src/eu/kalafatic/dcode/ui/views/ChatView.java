@@ -68,8 +68,10 @@ public final class ChatView extends ViewPart implements Ui.Refreshable, Ui.Sessi
         }
         input.setText("");
         append("user", task);
+        Ui.log("task", "Submitting task to session " + session.getId() + "…");
         Ui.run(RuntimeConnection.instance().api().startTask(session.getId(), task),
-                json -> Ui.log("Task submitted to session " + session.getId()),
+                json -> Ui.log("task", "Task submitted to session " + session.getId()
+                        + " — execution runs on the backend"),
                 "start task");
     }
 
@@ -78,8 +80,9 @@ public final class ChatView extends ViewPart implements Ui.Refreshable, Ui.Sessi
         if (session == null) {
             return;
         }
+        Ui.log("task", "Requesting cancellation of session " + session.getId() + "…");
         Ui.run(RuntimeConnection.instance().api().cancelSession(session.getId()),
-                json -> Ui.log("Cancellation requested for " + session.getId()),
+                json -> Ui.log("task", "Cancellation requested for " + session.getId()),
                 "cancel session");
     }
 

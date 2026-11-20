@@ -30,4 +30,12 @@ public interface ProviderRegistry {
 
     /** Executes one chat completion through the given provider. */
     ChatResponse complete(String providerId, ChatRequest request);
+
+    /**
+     * True when the provider participates in inference. Plain registries keep every
+     * provider enabled; runtime registries honor the enabled flag of each registration.
+     */
+    default boolean isEnabled(String providerId) {
+        return true;
+    }
 }

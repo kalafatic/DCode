@@ -5,8 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import eu.kalafatic.dcode.config.model.ModelDefinition;
+import eu.kalafatic.dcode.config.provider.ChatMessage;
+import eu.kalafatic.dcode.config.provider.ChatRequest;
+import eu.kalafatic.dcode.config.provider.ChatResponse;
 import eu.kalafatic.dcode.config.provider.ConnectionTestResult;
+import eu.kalafatic.dcode.config.provider.ProviderException;
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
+import eu.kalafatic.dcode.config.runtime.RuntimeInfo;
+import eu.kalafatic.dcode.config.runtime.RuntimeRegistration;
+import eu.kalafatic.dcode.config.runtime.RuntimeRegistry;
+import eu.kalafatic.dcode.config.runtime.RuntimeType;
 import eu.kalafatic.dcode.core.config.ConfigurationService;
 import eu.kalafatic.dcode.core.event.DCodeEvent;
 import eu.kalafatic.dcode.core.event.EventBus;
@@ -26,6 +34,7 @@ import fi.iki.elonen.NanoHTTPD;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,15 +51,21 @@ public final class DCodeApi {
     private final Supplier<WorkspaceService> workspaceSupplier;
     private final Supplier<ReviewService> reviewSupplier;
     private final ProviderRegistry providerRegistry;
+    private final RuntimeRegistry runtimes;
     private final ToolRegistry toolRegistry;
     private final SessionExecutor sessionExecutor;
     private final DCodeLifecycle lifecycle;
     private final ConfigurationService configuration;
     private final SseHub sseHub;
+    private final InferenceStreamHub inferenceStreams;
     private final ObjectMapper mapper = new ObjectMapper();
     private final java.util.function.Supplier<eu.kalafatic.dcode.harness.tool.ToolEngine> toolEngineSupplier;
     private final java.util.function.Supplier<eu.kalafatic.dcode.repositories.service.RepositoryOperations> repositoryOperationsSupplier;
     private final java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier;
+    private final java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier;
+    private final java.util.function.Supplier<eu.kalafatic.dcode.config.agent.AgentRegistry> agentSupplier;
+    private volatile int httpPortActual;
+    private volatile String httpPortBindAddress = "";
 
     public DCodeApi(Supplier<SessionService> sessionSupplier,
                     Supplier<WorkspaceService> workspaceSupplier,
@@ -59,8 +74,8 @@ public final class DCodeApi {
                     SessionExecutor sessionExecutor, DCodeLifecycle lifecycle,
                     ConfigurationService configuration, EventBus eventBus) {
         this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry,
-                toolRegistry, sessionExecutor, lifecycle, configuration, eventBus,
-                () -> null, () -> null, () -> null);
+                null, toolRegistry, sessionExecutor, lifecycle, configuration, eventBus,
+                () -> null, () -> null, () -> null, () -> null);
     }
 
     public DCodeApi(Supplier<SessionService> sessionSupplier,
@@ -72,19 +87,70 @@ public final class DCodeApi {
                     java.util.function.Supplier<eu.kalafatic.dcode.harness.tool.ToolEngine> toolEngineSupplier,
                     java.util.function.Supplier<eu.kalafatic.dcode.repositories.service.RepositoryOperations> repositoryOperationsSupplier,
                     java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier) {
+        this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry, null,
+                toolRegistry, sessionExecutor, lifecycle, configuration, eventBus,
+                toolEngineSupplier, repositoryOperationsSupplier, gitAccountsSupplier,
+                () -> null);
+    }
+
+    public DCodeApi(Supplier<SessionService> sessionSupplier,
+                    Supplier<WorkspaceService> workspaceSupplier,
+                    Supplier<ReviewService> reviewSupplier,
+                    ProviderRegistry providerRegistry, RuntimeRegistry runtimes,
+                    ToolRegistry toolRegistry,
+                    SessionExecutor sessionExecutor, DCodeLifecycle lifecycle,
+                    ConfigurationService configuration, EventBus eventBus) {
+        this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry,
+                runtimes, toolRegistry, sessionExecutor, lifecycle, configuration,
+                eventBus, () -> null, () -> null, () -> null, () -> null);
+    }
+
+    public DCodeApi(Supplier<SessionService> sessionSupplier,
+                    Supplier<WorkspaceService> workspaceSupplier,
+                    Supplier<ReviewService> reviewSupplier,
+                    ProviderRegistry providerRegistry, RuntimeRegistry runtimes,
+                    ToolRegistry toolRegistry,
+                    SessionExecutor sessionExecutor, DCodeLifecycle lifecycle,
+                    ConfigurationService configuration, EventBus eventBus,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.tool.ToolEngine> toolEngineSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.repositories.service.RepositoryOperations> repositoryOperationsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier) {
+        this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry,
+                runtimes, toolRegistry, sessionExecutor, lifecycle, configuration,
+                eventBus, toolEngineSupplier, repositoryOperationsSupplier,
+                gitAccountsSupplier, harnessSupplier, () -> null);
+    }
+
+    public DCodeApi(Supplier<SessionService> sessionSupplier,
+                    Supplier<WorkspaceService> workspaceSupplier,
+                    Supplier<ReviewService> reviewSupplier,
+                    ProviderRegistry providerRegistry, RuntimeRegistry runtimes,
+                    ToolRegistry toolRegistry,
+                    SessionExecutor sessionExecutor, DCodeLifecycle lifecycle,
+                    ConfigurationService configuration, EventBus eventBus,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.tool.ToolEngine> toolEngineSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.repositories.service.RepositoryOperations> repositoryOperationsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.agent.AgentRegistry> agentSupplier) {
         this.sessionSupplier = Objects.requireNonNull(sessionSupplier, "sessionSupplier");
         this.workspaceSupplier = Objects.requireNonNull(workspaceSupplier, "workspaceSupplier");
         this.reviewSupplier = Objects.requireNonNull(reviewSupplier, "reviewSupplier");
         this.providerRegistry = Objects.requireNonNull(providerRegistry, "providerRegistry");
+        this.runtimes = runtimes; // optional in embedded/test deployments
         this.toolRegistry = Objects.requireNonNull(toolRegistry, "toolRegistry");
         this.sessionExecutor = sessionExecutor; // optional in embedded/test deployments
         this.lifecycle = Objects.requireNonNull(lifecycle, "lifecycle");
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         this.sseHub = new SseHub(eventBus);
+        this.inferenceStreams = runtimes != null ? new InferenceStreamHub(runtimes) : null;
         this.toolEngineSupplier = Objects.requireNonNull(toolEngineSupplier, "toolEngineSupplier");
         this.repositoryOperationsSupplier = Objects.requireNonNull(repositoryOperationsSupplier,
                 "repositoryOperationsSupplier");
         this.gitAccountsSupplier = Objects.requireNonNull(gitAccountsSupplier, "gitAccountsSupplier");
+        this.harnessSupplier = Objects.requireNonNull(harnessSupplier, "harnessSupplier");
+        this.agentSupplier = Objects.requireNonNull(agentSupplier, "agentSupplier");
     }
 
     /** Authorization: bearer token required only when a server token is configured. */
@@ -96,6 +162,12 @@ public final class DCodeApi {
         String token = expected.get();
         return authorizationHeader != null
                 && authorizationHeader.strip().equals("Bearer " + token);
+    }
+
+    /** Records the actually bound HTTP port (set by the server activator after start). */
+    public void setHttpPortActual(int port, String bindAddress) {
+        this.httpPortActual = port;
+        this.httpPortBindAddress = bindAddress == null ? "" : bindAddress;
     }
 
     /** Opens an SSE stream for one session (or all events when sessionId is null). */
@@ -135,8 +207,23 @@ public final class DCodeApi {
             if (parts.length >= 2 && parts[1].equals("providers")) {
                 return payload(handleProviders(method, parts, session));
             }
+            if (parts.length >= 2 && parts[1].equals("runtimes")) {
+                return payload(handleRuntimes(method, parts, session));
+            }
+            if (parts.length >= 2 && parts[1].equals("inference")) {
+                return payload(handleInference(method, parts, session));
+            }
+            if (parts.length >= 2 && parts[1].equals("harnesses")) {
+                return payload(requireGet(method, harnesses()));
+            }
+            if (parts.length >= 2 && parts[1].equals("ports")) {
+                return payload(requireGet(method, ports()));
+            }
+            if (parts.length >= 2 && parts[1].equals("agents")) {
+                return payload(handleAgents(method, parts, session));
+            }
             if (parts.length >= 2 && parts[1].equals("models")) {
-                return payload(requireGet(method, models()));
+                return payload(requireGet(method, models(session.getParms().get("runtimeId"))));
             }
             if (parts.length >= 2 && parts[1].equals("tools")) {
                 if (parts.length == 4 && parts[3].equals("execute") && method.equals("POST")) {
@@ -267,6 +354,7 @@ public final class DCodeApi {
                         body.path("title").asText(null), workspaceId,
                         body.path("providerId").asText(null),
                         body.path("modelId").asText(null), role, null));
+                bindAgent(created, body.path("agentId").asText(null));
                 return ok(sessionNode(created));
             }
         }
@@ -282,7 +370,9 @@ public final class DCodeApi {
             if (task == null || task.isBlank()) {
                 throw new IllegalArgumentException("Field 'task' is required");
             }
-            sessionExecutor.submit(parts[2], task);
+            String providerId = body.path("providerId").asText(null);
+            String modelId = body.path("modelId").asText(null);
+            sessionExecutor.submit(parts[2], task, providerId, modelId);
             return ok(statusNode("accepted", "Execution submitted"));
         }
         if (parts.length == 4 && parts[3].equals("cancel") && method.equals("POST")) {
@@ -801,23 +891,36 @@ public final class DCodeApi {
         }
     }
 
-    // ---- providers/models/tools ----
+    // ---- providers / runtimes / models / tools ----
 
+    /**
+     * Provider listing, runtime-backed when a runtime registry is present (the
+     * production wiring). The response keeps the legacy fields (id/name/baseUrl/local)
+     * for existing web clients and adds runtime management fields.
+     */
     private String handleProviders(String method, String[] parts,
                                    NanoHTTPD.IHTTPSession session) {
         if (parts.length == 2 && method.equals("GET")) {
             ArrayNode array = mapper.createArrayNode();
-            for (var provider : providerRegistry.providers()) {
-                ObjectNode node = array.addObject();
-                node.put("id", provider.providerId());
-                node.put("name", provider.displayName());
-                node.put("baseUrl", provider.baseUrl());
-                node.put("local", provider.isLocal());
+            if (runtimes != null) {
+                for (RuntimeInfo info : runtimes.runtimes()) {
+                    array.add(runtimeNode(info));
+                }
+            } else {
+                for (var provider : providerRegistry.providers()) {
+                    ObjectNode node = array.addObject();
+                    node.put("id", provider.providerId());
+                    node.put("name", provider.displayName());
+                    node.put("baseUrl", provider.baseUrl());
+                    node.put("local", provider.isLocal());
+                }
             }
             return ok(array);
         }
         if (parts.length == 4 && parts[3].equals("test") && method.equals("POST")) {
-            ConnectionTestResult result = providerRegistry.testConnection(parts[2]);
+            ConnectionTestResult result = runtimes != null
+                    ? runtimes.testConnection(parts[2])
+                    : providerRegistry.testConnection(parts[2]);
             ObjectNode node = mapper.createObjectNode();
             node.put("providerId", parts[2]);
             node.put("success", result.success());
@@ -827,17 +930,453 @@ public final class DCodeApi {
         throw new NotFoundException("Unknown route segment");
     }
 
-    private String models() {
+    // ---- runtime management ----
+
+    private String handleRuntimes(String method, String[] parts,
+                                  NanoHTTPD.IHTTPSession session) throws IOException {
+        requireRuntimes();
+        if (parts.length == 3 && parts[2].equals("preflight") && method.equals("POST")) {
+            return preflightRuntime(session);
+        }
+        if (parts.length == 3 && parts[2].equals("scan") && method.equals("POST")) {
+            return scanRuntimes(session);
+        }
+        if (parts.length == 2 && method.equals("GET")) {
+            if (runtimes instanceof eu.kalafatic.dcode.config.runtime.RuntimeManager manager) {
+                manager.refreshAvailabilityIfStale();
+            }
+            ArrayNode array = mapper.createArrayNode();
+            for (RuntimeInfo info : runtimes.runtimes()) {
+                array.add(runtimeNode(info));
+            }
+            return ok(array);
+        }
+        if (parts.length == 2 && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            RuntimeType type = RuntimeType.fromWire(body.path("type").asText(null));
+            String endpoint = body.path("endpoint").asText(null);
+            if (endpoint == null || endpoint.isBlank()) {
+                throw new IllegalArgumentException("Field 'endpoint' is required");
+            }
+            validateEndpoint(endpoint);
+            String id = body.path("id").asText(null);
+            if (id == null || id.isBlank()) {
+                id = UUID.randomUUID().toString();
+            }
+            if (runtimes.isRegistered(id)) {
+                throw new IllegalArgumentException("Runtime already registered: " + id);
+            }
+            String name = body.path("name").asText(null);
+            RuntimeRegistration registration = new RuntimeRegistration(id,
+                    name != null && !name.isBlank() ? name : type.displayName(),
+                    type, endpoint, body.path("enabled").asBoolean(true),
+                    body.path("default").asBoolean(false),
+                    stringMap(body.path("configuration")));
+            if (runtimes instanceof eu.kalafatic.dcode.config.runtime.RuntimeManager manager) {
+                manager.register(registration, body.path("authToken").asText(null),
+                        body.path("apiKey").asText(null));
+            } else {
+                runtimes.register(registration);
+            }
+            return ok(runtimeNode(runtimes.info(id).orElseThrow()));
+        }
+        if (parts.length >= 3) {
+            String id = parts[2];
+            if (parts.length == 3 && method.equals("GET")) {
+                ObjectNode node = runtimeNode(requireRuntime(id));
+                node.set("models", modelArray(runtimes.listModels(id)));
+                return ok(node);
+            }
+            if (parts.length == 3 && method.equals("DELETE")) {
+                runtimes.unregister(id);
+                ObjectNode node = mapper.createObjectNode();
+                node.put("id", id);
+                node.put("removed", true);
+                node.put("note", "Registration removed; external runtime data untouched");
+                return ok(node);
+            }
+            if (parts.length == 3 && method.equals("POST")) {
+                JsonNode body = parseBody(session);
+                RuntimeInfo current = requireRuntime(id);
+                String endpoint = body.path("endpoint").asText(current.endpoint());
+                if (body.hasNonNull("endpoint")) {
+                    validateEndpoint(endpoint);
+                }
+                RuntimeRegistration registration = new RuntimeRegistration(
+                        current.id(),
+                        body.path("name").asText(current.name()),
+                        current.type(),
+                        endpoint,
+                        body.path("enabled").asBoolean(current.enabled()),
+                        body.path("default").asBoolean(current.defaultRuntime()),
+                        mergeConfiguration(current.configuration(),
+                                body.path("configuration")));
+                if (runtimes instanceof eu.kalafatic.dcode.config.runtime.RuntimeManager manager) {
+                    manager.update(registration, body.path("authToken").asText(null),
+                            body.path("apiKey").asText(null));
+                } else {
+                    runtimes.update(registration);
+                }
+                return ok(runtimeNode(runtimes.info(id).orElseThrow()));
+            }
+            if (parts.length == 4 && method.equals("POST")) {
+                JsonNode body = parseBody(session);
+                switch (parts[3]) {
+                    case "test" -> {
+                        ConnectionTestResult result = runtimes.testConnection(id);
+                        ObjectNode node = mapper.createObjectNode();
+                        node.put("id", id);
+                        node.put("success", result.success());
+                        node.put("message", result.message());
+                        return ok(node);
+                    }
+                    case "enable" -> {
+                        runtimes.setEnabled(id, true);
+                        return ok(runtimeNode(requireRuntime(id)));
+                    }
+                    case "disable" -> {
+                        runtimes.setEnabled(id, false);
+                        return ok(runtimeNode(requireRuntime(id)));
+                    }
+                    case "default" -> {
+                        runtimes.setDefault(id, body.path("modelId").asText(null));
+                        return ok(runtimeNode(requireRuntime(id)));
+                    }
+                    case "status" -> {
+                        var status = runtimes.runtimeStatus(id);
+                        ObjectNode node = mapper.createObjectNode();
+                        node.put("id", id);
+                        node.put("reachable", status.reachable());
+                        node.put("healthy", status.healthy());
+                        node.put("message", status.message());
+                        node.put("checkedAt", status.checkedAt().toString());
+                        return ok(node);
+                    }
+                    default -> {
+                    }
+                }
+            }
+            if (parts.length == 4 && parts[3].equals("models") && method.equals("GET")) {
+                return ok(modelArray(runtimes.listModels(id)));
+            }
+            if (parts.length == 6 && parts[3].equals("models") && method.equals("POST")) {
+                String modelId = java.net.URLDecoder.decode(parts[4],
+                        java.nio.charset.StandardCharsets.UTF_8);
+                return switch (parts[5]) {
+                    case "load" -> ok(modelNode(runtimes.loadModel(id, modelId)));
+                    case "unload" -> ok(modelNode(runtimes.unloadModel(id, modelId)));
+                    case "pull" -> ok(modelNode(runtimes.pullModel(id, modelId)));
+                    default -> throw new NotFoundException("Unknown model operation: "
+                            + parts[5]);
+                };
+            }
+        }
+        throw new NotFoundException("Unknown route segment");
+    }
+
+    // ---- direct inference chat (no coding task involved) ----
+
+    private String handleInference(String method, String[] parts,
+                                   NanoHTTPD.IHTTPSession session) throws IOException {
+        requireRuntimes();
+        if (parts.length >= 3 && parts[2].equals("cancel") && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            String requestId = body.path("requestId").asText(null);
+            if (requestId == null || requestId.isBlank()) {
+                throw new IllegalArgumentException("Field 'requestId' is required");
+            }
+            boolean cancelled = inferenceStreams != null
+                    && inferenceStreams.cancel(requestId);
+            ObjectNode node = mapper.createObjectNode();
+            node.put("requestId", requestId);
+            node.put("cancelled", cancelled);
+            return ok(node);
+        }
+        if (parts.length >= 3 && parts[2].equals("chat") && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            String runtimeId = resolveRuntimeId(body);
+            ChatRequest request = parseChatRequest(body);
+            if (!runtimes.isRegistered(runtimeId)) {
+                throw new NotFoundException("Unknown runtime: " + runtimeId);
+            }
+            if (!runtimes.isEnabled(runtimeId)) {
+                throw new IllegalStateException("Runtime '" + runtimeId + "' is disabled");
+            }
+            try {
+                ChatResponse response = runtimes.complete(runtimeId, request);
+                ObjectNode node = mapper.createObjectNode();
+                node.put("runtimeId", runtimeId);
+                node.put("model", request.model());
+                node.put("content", response.content());
+                node.put("finishReason", response.finishReason() != null
+                        ? response.finishReason() : "");
+                node.put("promptTokens", response.promptTokens());
+                node.put("completionTokens", response.completionTokens());
+                return ok(node);
+            } catch (ProviderException e) {
+                throw new IllegalStateException("Inference failed on runtime '"
+                        + runtimeId + "': " + e.getMessage());
+            }
+        }
+        throw new NotFoundException("Unknown route segment");
+    }
+
+    /**
+     * Opens the SSE stream for {@code POST /api/v1/inference/chat/stream}. Parsing and
+     * validation happen here; the HTTP server serves the returned stream.
+     */
+    public InputStream openInferenceStream(String body) {
+        requireRuntimes();
+        try {
+            JsonNode parsed = mapper.readTree(body == null || body.isBlank()
+                    ? "{}" : body);
+            String runtimeId = resolveRuntimeId(parsed);
+            if (!runtimes.isRegistered(runtimeId)) {
+                throw new IllegalArgumentException("Unknown runtime: " + runtimeId);
+            }
+            if (!runtimes.isEnabled(runtimeId)) {
+                throw new IllegalArgumentException("Runtime '" + runtimeId
+                        + "' is disabled");
+            }
+            ChatRequest request = parseChatRequest(parsed);
+            var started = inferenceStreams.start(runtimeId, request);
+            return started.stream();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid request body: " + e.getMessage());
+        }
+    }
+
+    /** Cancels a streamed direct inference generation by request id. */
+    public boolean cancelInference(String requestId) {
+        return inferenceStreams != null && inferenceStreams.cancel(requestId);
+    }
+
+    private String resolveRuntimeId(JsonNode body) {
+        String runtimeId = body.path("runtimeId").asText(null);
+        if (runtimeId == null || runtimeId.isBlank()) {
+            var defaultRuntime = runtimes.defaultRuntime();
+            if (defaultRuntime.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "No runtimeId given and no default runtime configured");
+            }
+            runtimeId = defaultRuntime.get().id();
+        }
+        return runtimeId;
+    }
+
+    /** Parses a chat request from an inference API body. */
+    public ChatRequest parseChatRequest(JsonNode body) {
+        String model = body.path("model").asText(null);
+        if (model == null || model.isBlank()) {
+            throw new IllegalArgumentException("Field 'model' is required");
+        }
+        List<ChatMessage> messages = new ArrayList<>();
+        JsonNode messageNodes = body.path("messages");
+        if (messageNodes.isArray()) {
+            for (JsonNode node : messageNodes) {
+                String role = node.path("role").asText("user").toLowerCase();
+                String content = node.path("content").asText("");
+                switch (role) {
+                    case "system" -> messages.add(ChatMessage.system(content));
+                    case "assistant" -> messages.add(ChatMessage.assistant(content));
+                    default -> messages.add(ChatMessage.user(content));
+                }
+            }
+        }
+        double temperature = body.path("temperature").asDouble(0.0);
+        int maxTokens = body.path("maxTokens").asInt(body.path("max_tokens").asInt(0));
+        return new ChatRequest(model, messages, temperature, maxTokens);
+    }
+
+    /**
+     * Scans local endpoints for inference services (DCode, ENR, Ollama,
+     * OpenAI-compatible). One shared implementation for the RCP and Web IDEs.
+     */
+    private String scanRuntimes(NanoHTTPD.IHTTPSession session) throws IOException {
+        JsonNode body = parseBody(session);
+        List<String> endpoints = new ArrayList<>();
+        JsonNode list = body.path("endpoints");
+        if (list.isArray()) {
+            for (JsonNode entry : list) {
+                String endpoint = entry.asText("");
+                if (!endpoint.isBlank()) {
+                    endpoints.add(endpoint);
+                }
+            }
+        }
+        eu.kalafatic.dcode.config.runtime.RuntimeScanner scanner =
+                new eu.kalafatic.dcode.config.runtime.RuntimeScanner();
+        List<eu.kalafatic.dcode.config.runtime.RuntimeScanner.Finding> findings =
+                endpoints.isEmpty() ? scanner.scanLocal() : scanner.scan(endpoints);
         ArrayNode array = mapper.createArrayNode();
-        for (ModelDefinition model : providerRegistry.listAllModels()) {
+        for (var finding : findings) {
             ObjectNode node = array.addObject();
-            node.put("id", model.id());
-            node.put("name", model.name());
-            node.put("providerId", model.providerId());
-            node.put("contextWindowTokens", model.contextWindowTokens());
-            node.put("available", model.available());
+            node.put("endpoint", finding.endpoint());
+            node.put("kind", finding.kind());
+            node.put("name", finding.name());
+            node.put("description", finding.description());
+            node.put("reachable", finding.reachable());
+            node.put("modelCount", finding.modelCount());
+            ArrayNode samples = node.putArray("sampleModels");
+            finding.sampleModels().forEach(samples::add);
+            node.put("type", finding.runtimeType() != null
+                    ? finding.runtimeType().wireName() : "");
+            boolean registered = runtimes.runtimes().stream()
+                    .anyMatch(info -> info.endpoint().equals(finding.endpoint()));
+            node.put("registered", registered);
         }
         return ok(array);
+    }
+
+    private RuntimeInfo requireRuntime(String id) {
+        return runtimes.info(id)
+                .orElseThrow(() -> new NotFoundException("Unknown runtime: " + id));
+    }
+
+    /**
+     * Connection preflight for a runtime that is not saved yet: builds a temporary
+     * adapter with the supplied credentials (never stored) and probes the endpoint.
+     */
+    private String preflightRuntime(NanoHTTPD.IHTTPSession session) throws IOException {
+        JsonNode body = parseBody(session);
+        RuntimeType type = RuntimeType.fromWire(body.path("type").asText(null));
+        String endpoint = body.path("endpoint").asText(null);
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new IllegalArgumentException("Field 'endpoint' is required");
+        }
+        validateEndpoint(endpoint);
+        String authToken = body.path("authToken").asText(null);
+        String apiKey = body.path("apiKey").asText(null);
+        RuntimeRegistration probe = new RuntimeRegistration("preflight",
+                type.displayName(), type, endpoint, true, false, Map.of());
+        var adapter = new eu.kalafatic.dcode.config.runtime.RuntimeAdapterFactory()
+                .create(probe,
+                        () -> authToken != null && !authToken.isBlank() ? authToken : null,
+                        () -> apiKey != null && !apiKey.isBlank() ? apiKey : null);
+        ConnectionTestResult result = adapter.testConnection();
+        ObjectNode node = mapper.createObjectNode();
+        node.put("success", result.success());
+        node.put("message", result.message());
+        ArrayNode models = node.putArray("models");
+        try {
+            for (ModelDefinition model : adapter.listModels()) {
+                models.add(modelNode(model));
+            }
+        } catch (ProviderException ignored) {
+            // model discovery unsupported or failed: the connection result stands
+        }
+        return ok(node);
+    }
+
+    private void requireRuntimes() {
+        if (runtimes == null) {
+            throw new IllegalStateException("Runtime management is not available");
+        }
+    }
+
+    private static void validateEndpoint(String endpoint) {
+        try {
+            java.net.URI uri = java.net.URI.create(endpoint);
+            if (!"http".equalsIgnoreCase(uri.getScheme())
+                    && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException(
+                        "Endpoint must be an http(s) URL: " + endpoint);
+            }
+        } catch (java.lang.IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid endpoint URL: " + endpoint);
+        }
+    }
+
+    private Map<String, String> stringMap(JsonNode node) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        if (node != null && node.isObject()) {
+            node.fields().forEachRemaining(entry ->
+                    result.put(entry.getKey(), entry.getValue().asText("")));
+        }
+        return result;
+    }
+
+    private Map<String, String> mergeConfiguration(Map<String, String> current,
+                                                   JsonNode patch) {
+        Map<String, String> merged = new java.util.LinkedHashMap<>(current);
+        if (patch != null && patch.isObject()) {
+            patch.fields().forEachRemaining(entry ->
+                    merged.put(entry.getKey(), entry.getValue().asText("")));
+        }
+        return merged;
+    }
+
+    private ObjectNode runtimeNode(RuntimeInfo info) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", info.id());
+        node.put("name", info.name());
+        node.put("type", info.type().wireName());
+        node.put("typeDisplayName", info.type().displayName());
+        node.put("baseUrl", info.endpoint());
+        node.put("endpoint", info.endpoint());
+        node.put("local", info.local());
+        node.put("enabled", info.enabled());
+        node.put("default", info.defaultRuntime());
+        if (info.defaultRuntime()) {
+            node.put("defaultModel", runtimes.defaultModel().orElse(""));
+        }
+        node.put("modelCount", info.modelCount());
+        ObjectNode capabilities = node.putObject("capabilities");
+        capabilities.put("modelDiscovery", info.capabilities().modelDiscovery());
+        capabilities.put("streaming", info.capabilities().streaming());
+        capabilities.put("cancellation", info.capabilities().cancellation());
+        capabilities.put("modelLoad", info.capabilities().modelLoad());
+        capabilities.put("modelUnload", info.capabilities().modelUnload());
+        capabilities.put("modelPull", info.capabilities().modelPull());
+        capabilities.put("health", info.capabilities().health());
+        capabilities.put("runtimeStatus", info.capabilities().runtimeStatus());
+        ArrayNode reported = capabilities.putArray("reported");
+        info.capabilities().reported().forEach(reported::add);
+        ObjectNode status = node.putObject("status");
+        status.put("reachable", info.status().reachable());
+        status.put("healthy", info.status().healthy());
+        status.put("message", info.status().message());
+        status.put("checkedAt", info.status().checkedAt().toString());
+        ObjectNode credentials = node.putObject("credentials");
+        Map<String, String> credentialState = runtimes != null
+                ? runtimes.credentialState(info.id()) : Map.of();
+        credentialState.forEach((key, value) -> credentials.put(key,
+                value == null || value.isBlank() ? "" : "***"));
+        ObjectNode configuration = node.putObject("configuration");
+        info.configuration().forEach(configuration::put);
+        return node;
+    }
+
+    private ArrayNode modelArray(List<ModelDefinition> models) {
+        ArrayNode array = mapper.createArrayNode();
+        for (ModelDefinition model : models) {
+            array.add(modelNode(model));
+        }
+        return array;
+    }
+
+    private ObjectNode modelNode(ModelDefinition model) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", model.id());
+        node.put("name", model.name());
+        node.put("providerId", model.providerId());
+        node.put("runtimeId", model.providerId());
+        node.put("contextWindowTokens", model.contextWindowTokens());
+        node.put("sizeBytes", model.sizeBytes());
+        node.put("quantization", model.quantization());
+        node.put("available", model.available());
+        node.put("loaded", model.loaded());
+        ArrayNode capabilities = node.putArray("capabilities");
+        model.capabilities().forEach(capabilities::add);
+        return node;
+    }
+
+    private String models(String runtimeIdFilter) {
+        List<ModelDefinition> models = runtimeIdFilter != null
+                && !runtimeIdFilter.isBlank()
+                ? providerRegistry.listModels(runtimeIdFilter)
+                : providerRegistry.listAllModels();
+        return ok(modelArray(models));
     }
 
     private String tools() {
@@ -856,7 +1395,7 @@ public final class DCodeApi {
     private String health() {
         ObjectNode node = mapper.createObjectNode();
         node.put("application", "DCODE");
-        node.put("version", "0.1.0");
+        node.put("version", "2.6.11");
         node.put("ready", lifecycle.isReady());
         node.put("status", lifecycle.isReady() ? "UP" : "DEGRADED");
         node.put("timestamp", Instant.now().toString());
@@ -877,6 +1416,183 @@ public final class DCodeApi {
             stages.put(stage.name(), lifecycle.getStageState(stage).name());
         }
         return ok(node);
+    }
+
+    /**
+     * Port & network status of the DCode services: expected family port, actual
+     * bound port, bind address, protocol, runtime state and conflict diagnostics
+     * (including the occupying process where the OS allows identification).
+     */
+    private String ports() {
+        String bindAddress = configuration.getConfiguration().bindAddress();
+        ArrayNode array = mapper.createArrayNode();
+        array.add(portNode("http", "DCode HTTP API (REST + SSE + web UI)",
+                eu.kalafatic.dcode.core.port.DCodePorts.HTTP, httpPortActual,
+                httpPortBindAddress.isBlank() ? bindAddress : httpPortBindAddress,
+                "HTTP", httpPortActual > 0, bindAddress));
+        array.add(portNode("management", "Management server (reserved)",
+                eu.kalafatic.dcode.core.port.DCodePorts.MANAGEMENT, 0, bindAddress,
+                "HTTP", false, bindAddress));
+        array.add(portNode("auxiliary", "Auxiliary services (reserved)",
+                eu.kalafatic.dcode.core.port.DCodePorts.AUX, 0, bindAddress,
+                "HTTP", false, bindAddress));
+        return ok(array);
+    }
+
+    private ObjectNode portNode(String id, String name, int expectedPort, int actualPort,
+                                String bindAddress, String protocol, boolean listening,
+                                String configuredBind) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", id);
+        node.put("name", name);
+        node.put("expectedPort", expectedPort);
+        node.put("actualPort", actualPort);
+        node.put("bindAddress", bindAddress);
+        node.put("protocol", protocol);
+        node.put("state", listening ? "LISTENING" : "STOPPED");
+        node.put("listening", listening);
+        if (!listening && expectedPort > 0
+                && !eu.kalafatic.dcode.core.port.PortInspector.available(expectedPort)) {
+            node.put("conflict", true);
+            var occupant = eu.kalafatic.dcode.core.port.PortInspector.occupant(
+                    expectedPort);
+            if (occupant.isPresent()) {
+                node.put("occupantPid", occupant.get().pid());
+                node.put("occupantProcess", occupant.get().command());
+            }
+        } else {
+            node.put("conflict", false);
+        }
+        return node;
+    }
+
+    /**
+     * Binds an agent profile to a freshly created session: the profile instructions
+     * are stored as a dedicated SYSTEM message rendered by the harness as part of the
+     * system prompt. An explicitly requested agent wins; otherwise the registered
+     * default agent is bound.
+     */
+    private void bindAgent(eu.kalafatic.dcode.core.model.Session created,
+                           String agentId) {
+        eu.kalafatic.dcode.config.agent.AgentRegistry registry = agentSupplier.get();
+        if (registry == null) {
+            return;
+        }
+        eu.kalafatic.dcode.config.agent.AgentDefinition agent = null;
+        if (agentId != null && !agentId.isBlank()) {
+            agent = registry.find(agentId).orElse(null);
+        }
+        if (agent == null) {
+            agent = registry.defaultAgent().orElse(null);
+        }
+        if (agent == null) {
+            return;
+        }
+        ObjectNode envelope = mapper.createObjectNode();
+        envelope.put("source", "DCODE_AGENT_PROFILE");
+        envelope.put("agentId", agent.id());
+        envelope.put("agentName", agent.name());
+        envelope.put("instructions", agent.systemInstructions());
+        sessionSupplier.get().appendMessage(created.getId(), MessageRole.SYSTEM,
+                envelope.toString());
+    }
+
+    private String handleAgents(String method, String[] parts,
+                                NanoHTTPD.IHTTPSession session) throws IOException {
+        eu.kalafatic.dcode.config.agent.AgentRegistry registry = agentSupplier.get();
+        if (registry == null) {
+            throw new IllegalStateException("Agent registry is not available");
+        }
+        if (parts.length == 2 && method.equals("GET")) {
+            ArrayNode array = mapper.createArrayNode();
+            for (var agent : registry.agents()) {
+                array.add(agentNode(agent));
+            }
+            return ok(array);
+        }
+        if (parts.length == 2 && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            String id = body.path("id").asText(null);
+            if (id == null || id.isBlank()) {
+                id = UUID.randomUUID().toString();
+            }
+            var agent = new eu.kalafatic.dcode.config.agent.AgentDefinition(id,
+                    body.path("name").asText(id),
+                    body.path("description").asText(""),
+                    body.path("role").asText("MAIN"),
+                    body.path("systemInstructions").asText(""),
+                    stringList(body.path("toolPermissions")),
+                    stringList(body.path("restrictions")),
+                    body.path("preferredRuntimeId").asText(""),
+                    body.path("preferredModel").asText(""),
+                    false);
+            if (registry.find(id).isPresent() && registry.find(id).get().builtin()) {
+                throw new IllegalArgumentException("Built-in agents are immutable");
+            }
+            return ok(agentNode(registry.register(agent)));
+        }
+        if (parts.length == 3 && method.equals("DELETE")) {
+            registry.unregister(parts[2]);
+            ObjectNode node = mapper.createObjectNode();
+            node.put("id", parts[2]);
+            node.put("removed", true);
+            return ok(node);
+        }
+        if (parts.length == 4 && parts[3].equals("default") && method.equals("POST")) {
+            registry.setDefaultAgent(parts[2]);
+            return ok(agentNode(registry.find(parts[2]).orElseThrow()));
+        }
+        throw new NotFoundException("Unknown route segment");
+    }
+
+    private ObjectNode agentNode(eu.kalafatic.dcode.config.agent.AgentDefinition agent) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", agent.id());
+        node.put("name", agent.name());
+        node.put("description", agent.description());
+        node.put("role", agent.role());
+        node.put("systemInstructions", agent.systemInstructions());
+        node.put("preferredRuntimeId", agent.preferredRuntimeId());
+        node.put("preferredModel", agent.preferredModel());
+        node.put("builtin", agent.builtin());
+        ArrayNode permissions = node.putArray("toolPermissions");
+        agent.toolPermissions().forEach(permissions::add);
+        ArrayNode restrictions = node.putArray("restrictions");
+        agent.restrictions().forEach(restrictions::add);
+        boolean isDefault = agentSupplier.get() != null
+                && agentSupplier.get().defaultAgent().map(
+                        eu.kalafatic.dcode.config.agent.AgentDefinition::id)
+                .orElse("").equals(agent.id());
+        node.put("default", isDefault);
+        return node;
+    }
+
+    private List<String> stringList(JsonNode node) {
+        List<String> result = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            node.forEach(entry -> result.add(entry.asText("")));
+        }
+        return result;
+    }
+
+    private String harnesses() {        eu.kalafatic.dcode.harness.registry.HarnessRegistry registry =
+                harnessSupplier.get();
+        if (registry == null) {
+            registry = new eu.kalafatic.dcode.harness.registry.DefaultHarnessRegistry();
+        }
+        ArrayNode array = mapper.createArrayNode();
+        for (var harness : registry.harnesses()) {
+            ObjectNode node = array.addObject();
+            node.put("id", harness.id());
+            node.put("name", harness.name());
+            node.put("description", harness.description());
+            node.put("integrated", harness.integrated());
+            node.put("available", harness.available());
+            node.put("usable", harness.usable());
+            ArrayNode capabilities = node.putArray("capabilities");
+            harness.capabilities().forEach(capabilities::add);
+        }
+        return ok(array);
     }
 
     // ---- helpers ----

@@ -21,15 +21,24 @@ import org.eclipse.ui.part.ViewPart;
 /**
  * Multi-repository workspace explorer. All data comes from the backend API; the tree
  * is lazily loaded per directory. Repository nodes expose git operations through the
- * policy-enforced API endpoints.
+ * policy-enforced API endpoints. Loading, empty, error and recovery states are
+ * rendered explicitly — the view is never silently blank.
  */
 public final class WorkspaceExplorerView extends ViewPart implements Ui.Refreshable {
 
     private Tree tree;
+    private org.eclipse.swt.widgets.Label status;
 
     @Override
     public void createPartControl(Composite parent) {
-        tree = new Tree(parent, SWT.BORDER | SWT.V_SCROLL | SWT.H_SCROLL);
+        Composite root = new Composite(parent, SWT.NONE);
+        root.setLayout(new org.eclipse.swt.layout.GridLayout(1, false));
+        status = new org.eclipse.swt.widgets.Label(root, SWT.WRAP);
+        status.setLayoutData(new org.eclipse.swt.layout.GridData(
+                org.eclipse.swt.layout.GridData.FILL_HORIZONTAL));
+        tree = new Tree(root, SWT.BORDER | SWT.V_SCROLL | SWT.H_SCROLL);
+        tree.setLayoutData(new org.eclipse.swt.layout.GridData(
+                org.eclipse.swt.layout.GridData.FILL_BOTH));
         getViewSite().getActionBars().getToolBarManager().add(new Action("Refresh") {
             @Override
             public void run() {
@@ -42,8 +51,42 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                 openAddRepositoryDialog();
             }
         });
+        getViewSite().getActionBars().getToolBarManager().add(new Action("New workspace…") {
+            @Override
+            public void run() {
+                openNewWorkspaceDialog();
+            }
+        });
+        getViewSite().getActionBars().getToolBarManager().add(new Action("Connection…") {
+            @Override
+            public void run() {
+                try {
+                    PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage()
+                            .showView("eu.kalafatic.dcode.ui.views.connection");
+                } catch (Exception e) {
+                    Ui.log("error", "Cannot open Connection view: " + e.getMessage());
+                }
+            }
+        });
         hookContextMenu();
         refreshContent();
+    }
+
+    private void openNewWorkspaceDialog() {
+        InputDialog dialog = new InputDialog(tree.getShell(), "New workspace",
+                "Workspace name:", "", null);
+        if (dialog.open() == org.eclipse.jface.dialogs.Dialog.OK) {
+            String name = dialog.getValue().trim();
+            if (name.isEmpty()) {
+                return;
+            }
+            Ui.run(RuntimeConnection.instance().api().createWorkspace(name, null),
+                    workspace -> {
+                        Ui.log("success", "Workspace '" + workspace.name()
+                                + "' created");
+                        refreshContent();
+                    }, "create workspace");
+        }
     }
 
     private void hookContextMenu() {
@@ -228,8 +271,22 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
     public void refreshContent() {
         Ui.async(() -> {
             tree.removeAll();
+            if (!RuntimeConnection.instance().isUsableForRequests()) {
+                renderErrorState("Backend connection is " + RuntimeConnection.instance()
+                        .state().name() + ".", "Reconnect or fix the endpoint from the "
+                        + "Connection view (toolbar: Connection…)");
+                return;
+            }
+            status.setText("Loading workspaces…");
             tree.setRedraw(false);
             Ui.run(RuntimeConnection.instance().api().listWorkspaces(), workspaces -> {
+                if (workspaces.isEmpty()) {
+                    status.setText("No workspaces yet — use \"New workspace…\" "
+                            + "to create one, or \"Add repository…\" to attach a "
+                            + "repository to the first workspace.");
+                    return;
+                }
+                status.setText(workspaces.size() + " workspace(s)");
                 for (Workspace workspace : workspaces) {
                     TreeItem item = new TreeItem(tree, SWT.NONE);
                     item.setText(workspace.name() + "  (" + workspace.repositories().size()
@@ -241,6 +298,13 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
             }, "list workspaces");
             tree.setRedraw(true);
         });
+    }
+
+    private void renderErrorState(String headline, String recovery) {
+        status.setText(headline + "\n" + recovery);
+        TreeItem item = new TreeItem(tree, SWT.NONE);
+        item.setText("(backend unavailable — see status above and the Console for "
+                + "details)");
     }
 
     private void loadWorkspace(TreeItem item, Workspace workspace) {

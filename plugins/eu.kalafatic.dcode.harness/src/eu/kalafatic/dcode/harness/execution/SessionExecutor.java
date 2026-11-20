@@ -1,6 +1,8 @@
 package eu.kalafatic.dcode.harness.execution;
 
 import eu.kalafatic.dcode.config.git.GitAccountManager;
+import eu.kalafatic.dcode.config.model.ModelDefinition;
+import eu.kalafatic.dcode.config.provider.ProviderException;
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
 import eu.kalafatic.dcode.config.routing.ModelRouter;
 import eu.kalafatic.dcode.config.routing.ModelSelection;
@@ -23,6 +25,7 @@ import eu.kalafatic.dcode.harness.orchestration.ToolCallingAgentLoop;
 import eu.kalafatic.dcode.repositories.service.RepositoryOperations;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +42,10 @@ import java.util.function.Supplier;
  * <p>Dependencies are resolved per submission through suppliers so that the durable
  * (SQLite) services are used whenever present, regardless of bundle start order.
  * Long-running work never blocks caller threads.</p>
+ *
+ * <p>Inference runtime selection follows the explicit chain: per-task override, then
+ * per-session selection, then the router default. A missing or disabled runtime fails
+ * the task with a clear error — never a silent switch to another runtime.</p>
  */
 public final class SessionExecutor {
 
@@ -62,6 +69,7 @@ public final class SessionExecutor {
             });
     private final ConcurrentHashMap<String, Future<?>> running = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicBoolean> cancellations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ModelSelection> taskOverrides = new ConcurrentHashMap<>();
 
     public SessionExecutor(Supplier<SessionService> sessionSupplier,
                            Supplier<WorkspaceService> workspaceSupplier,
@@ -99,6 +107,16 @@ public final class SessionExecutor {
 
     /** Submits a task for asynchronous execution in a session. */
     public synchronized void submit(String sessionId, String task) {
+        submit(sessionId, task, null, null);
+    }
+
+    /**
+     * Submits a task with an optional per-task runtime/model override. The override is
+     * validated and used for this run only; the session selection and the configured
+     * default remain unchanged.
+     */
+    public synchronized void submit(String sessionId, String task,
+                                    String providerIdOverride, String modelIdOverride) {
         if (running.containsKey(sessionId)) {
             throw new IllegalStateException("Session already executing: " + sessionId);
         }
@@ -107,6 +125,11 @@ public final class SessionExecutor {
         sessionService.appendMessage(sessionId, MessageRole.USER, task);
         AtomicBoolean cancelled = new AtomicBoolean(false);
         cancellations.put(sessionId, cancelled);
+        if (providerIdOverride != null && !providerIdOverride.isBlank()
+                || modelIdOverride != null && !modelIdOverride.isBlank()) {
+            taskOverrides.put(sessionId, new ModelSelection(providerIdOverride,
+                    modelIdOverride));
+        }
         Future<?> future = executor.submit(() -> execute(session, task, cancelled));
         running.put(sessionId, future);
     }
@@ -137,23 +160,18 @@ public final class SessionExecutor {
                             + session.getWorkspaceId()));
 
             ModelSelection selection = resolveModel(session);
-            String providerId = session.getProviderId() != null ? session.getProviderId()
-                    : selection.providerId();
-            String modelId = session.getModelId() != null ? session.getModelId()
-                    : selection.modelId();
+            validateRuntime(selection, sessionId);
 
             var run = agentEngine.startRun(sessionId,
                     session.getAgentRole() != null ? session.getAgentRole() : AgentRole.MAIN,
-                    providerId, modelId);
-
-            Map<String, Object> services = new HashMap<>();
+                    selection.providerId(), selection.modelId());            Map<String, Object> services = new HashMap<>();
             services.put("repositoryOperations", repositoryOperations);
             if (gitAccounts != null) {
                 services.put("gitAccounts", gitAccounts);
             }
             services.put("sessionService", sessionService);
-            var outcome = agentLoop.run(workspace, session, task, providerId, modelId,
-                    services, cancelled::get);
+            var outcome = agentLoop.run(workspace, session, task, selection.providerId(),
+                    selection.modelId(), services, cancelled::get);
 
             if (cancelled.get()) {
                 agentEngine.finishRun(run.id(), ExecutionState.CANCELLED, outcome.summary());
@@ -164,7 +182,10 @@ public final class SessionExecutor {
                 agentEngine.finishRun(run.id(), ExecutionState.FAILED, outcome.summary());
                 sessionService.transition(sessionId, SessionState.FAILED);
                 eventBus.publish(StandardEvent.of(DCodeEventType.SYSTEM_ERROR, sessionId,
-                        "{\"message\":\"Execution failed: " + escape(outcome.summary()) + "\"}"));
+                        "{\"message\":\"Execution failed (runtime="
+                                + escape(selection.providerId()) + ", model="
+                                + escape(selection.modelId()) + "): "
+                                + escape(outcome.summary()) + "\"}"));
                 return;
             }
 
@@ -189,6 +210,9 @@ public final class SessionExecutor {
                         .forEach(r -> agentEngine.finishRun(r.id(), ExecutionState.FAILED,
                                 e.getMessage()));
                 sessionService.transition(sessionId, SessionState.FAILED);
+                eventBus.publish(StandardEvent.of(DCodeEventType.SYSTEM_ERROR, sessionId,
+                        "{\"message\":\"Execution failed: " + escape(e.getMessage())
+                                + "\"}"));
             } catch (Exception transitionError) {
                 DCodeLog.error("execution", "Failed to mark session " + sessionId
                         + " FAILED", transitionError);
@@ -196,20 +220,84 @@ public final class SessionExecutor {
         } finally {
             running.remove(sessionId);
             cancellations.remove(sessionId);
+            taskOverrides.remove(sessionId);
         }
     }
 
+    /**
+     * Resolves the effective provider/model pair: per-task override first, then the
+     * session selection, then the router default. A partial selection (provider without
+     * model) keeps the provider and falls back to the router model, preserving the
+     * historical selection semantics. The router is consulted only when needed.
+     */
     private ModelSelection resolveModel(Session session) {
-        if (session.getProviderId() != null && !session.getProviderId().isBlank()
-                && session.getModelId() != null && !session.getModelId().isBlank()) {
-            return new ModelSelection(session.getProviderId(), session.getModelId());
+        ModelSelection override = taskOverrides.get(session.getId());
+        String sessionProvider = session.getProviderId();
+        String sessionModel = session.getModelId();
+        if (override != null && notBlank(override.providerId())) {
+            String model = notBlank(override.modelId()) ? override.modelId()
+                    : notBlank(sessionModel) ? sessionModel
+                    : routeFallback(session).modelId();
+            return new ModelSelection(override.providerId(), model);
         }
+        if (notBlank(sessionProvider)) {
+            String model = notBlank(sessionModel) ? sessionModel
+                    : routeFallback(session).modelId();
+            return new ModelSelection(sessionProvider, model);
+        }
+        return routeFallback(session);
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private ModelSelection routeFallback(Session session) {
         AgentRole role = session.getAgentRole() != null ? session.getAgentRole()
                 : AgentRole.MAIN;
         return modelRouter.resolve(role);
     }
 
+    /**
+     * Pre-flight validation of the selected runtime/model. Fails fast with a clear
+     * message; the selection is never silently replaced by another runtime.
+     */
+    private void validateRuntime(ModelSelection selection, String sessionId) {
+        String providerId = selection.providerId();
+        String modelId = selection.modelId();
+        if (!providerRegistry.find(providerId).isPresent()) {
+            throw new ProviderException("Runtime '" + providerId + "' is not registered");
+        }
+        if (!providerRegistry.isEnabled(providerId)) {
+            throw new ProviderException("Runtime '" + providerId + "' is disabled; "
+                    + "enable it or select another runtime");
+        }
+        List<ModelDefinition> models;
+        try {
+            models = providerRegistry.listModels(providerId);
+        } catch (ProviderException e) {
+            // Model discovery unsupported or runtime unreachable: the completion call
+            // reports the definitive error.
+            DCodeLog.warn("execution", "Model discovery on runtime '" + providerId
+                    + "' failed: " + e.getMessage());
+            return;
+        }
+        if (modelId == null || modelId.isBlank()) {
+            return;
+        }
+        if (models.isEmpty()) {
+            return;
+        }
+        boolean known = models.stream().anyMatch(m -> m.id().equals(modelId));
+        if (!known) {
+            throw new ProviderException("Model '" + modelId + "' is not available on "
+                    + "runtime '" + providerId + "' (discovered: "
+                    + models.stream().limit(5).map(ModelDefinition::id)
+                    .collect(java.util.stream.Collectors.joining(", ")) + ")");
+        }
+    }
+
     private static String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

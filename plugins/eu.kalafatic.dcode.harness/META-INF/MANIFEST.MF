@@ -2,15 +2,15 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: DCode Harness
 Bundle-SymbolicName: eu.kalafatic.dcode.harness;singleton:=true
-Bundle-Version: 0.1.0.qualifier
+Bundle-Version: 2.6.11.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-Vendor: Kalafatic
 Bundle-ActivationPolicy: lazy
 Bundle-Activator: eu.kalafatic.dcode.harness.internal.HarnessActivator
 Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
-Require-Bundle: eu.kalafatic.dcode.core;bundle-version="0.1.0",
- eu.kalafatic.dcode.config;bundle-version="0.1.0",
- eu.kalafatic.dcode.repositories;bundle-version="0.1.0"
+Require-Bundle: eu.kalafatic.dcode.core;bundle-version="2.6.11",
+ eu.kalafatic.dcode.config;bundle-version="2.6.11",
+ eu.kalafatic.dcode.repositories;bundle-version="2.6.11"
 Import-Package: org.osgi.framework;version="[1.10.0,2.0.0)",
  org.osgi.util.tracker;version="[1.5.4,2.0.0)"
 Bundle-ClassPath: .,
@@ -22,6 +22,7 @@ Export-Package: eu.kalafatic.dcode.harness.agent,
  eu.kalafatic.dcode.harness.context,
  eu.kalafatic.dcode.harness.execution,
  eu.kalafatic.dcode.harness.orchestration,
+ eu.kalafatic.dcode.harness.registry,
  eu.kalafatic.dcode.harness.session,
  eu.kalafatic.dcode.harness.tool,
  eu.kalafatic.dcode.harness.tools
