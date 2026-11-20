@@ -274,6 +274,8 @@ public final class SessionExecutor {
                         .filter(runtime -> candidates.stream().noneMatch(
                                 existing -> existing.id().equals(runtime.id())))
                         .forEach(candidates::add);
+                // Pass 1: a model that can actually run the coding-agent protocol
+                // (registered default, or unknown/large enough context window).
                 for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
                     List<ModelDefinition> models;
                     try {
@@ -284,12 +286,30 @@ public final class SessionExecutor {
                     String registeredDefault = candidates.get(0).id().equals(runtime.id())
                             ? runtimes.defaultModel().orElse("") : "";
                     ModelSelection selection = pickModel(runtime.id(), models,
-                            registeredDefault);
+                            registeredDefault, true);
                     if (selection != null) {
                         DCodeLog.info("execution", "No configured model; using "
                                 + selection.modelId() + " on runtime "
                                 + runtime.id());
                         return selection;
+                    }
+                }
+                // Pass 2: nothing usable found — take any available model so the
+                // execution still produces an honest attempt instead of a routing
+                // error.
+                for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
+                    try {
+                        ModelSelection selection = pickModel(runtime.id(),
+                                runtimes.listModels(runtime.id()), "", false);
+                        if (selection != null) {
+                            DCodeLog.warn("execution", "Only a minimal-context model is "
+                                    + "available (" + selection.modelId() + " on "
+                                    + runtime.id() + "); the coding-agent protocol "
+                                    + "may not fit its context window");
+                            return selection;
+                        }
+                    } catch (RuntimeException e) {
+                        // discovery failed on this runtime: try the next
                     }
                 }
             }
@@ -300,10 +320,11 @@ public final class SessionExecutor {
     /**
      * Picks a model for an unconfigured execution: the registered runtime default
      * model, then the first available model with an unknown or >= 4096 token context
-     * window, then any available model.
+     * window. With {@code usableOnly=false} any available model qualifies.
      */
     private static ModelSelection pickModel(String providerId, List<ModelDefinition> models,
-                                            String registeredDefault) {
+                                            String registeredDefault,
+                                            boolean usableOnly) {
         if (!registeredDefault.isBlank()) {
             boolean defaultPresent = models.stream()
                     .anyMatch(model -> model.id().equals(registeredDefault));
@@ -313,16 +334,10 @@ public final class SessionExecutor {
         }
         java.util.Optional<ModelDefinition> usable = models.stream()
                 .filter(ModelDefinition::available)
-                .filter(model -> model.contextWindowTokens() <= 0
+                .filter(model -> !usableOnly || model.contextWindowTokens() <= 0
                         || model.contextWindowTokens() >= 4096)
                 .findFirst();
-        if (usable.isPresent()) {
-            return new ModelSelection(providerId, usable.get().id());
-        }
-        return models.stream()
-                .filter(ModelDefinition::available)
-                .findFirst()
-                .map(model -> new ModelSelection(providerId, model.id()))
+        return usable.map(model -> new ModelSelection(providerId, model.id()))
                 .orElse(null);
     }
 
