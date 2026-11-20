@@ -260,28 +260,70 @@ public final class SessionExecutor {
         try {
             return modelRouter.resolve(role);
         } catch (ProviderException routerError) {
-            // No explicit model configuration anywhere: resolve through the registry
-            // default runtime — its default model, or its first discovered model.
+            // No explicit model configuration anywhere: resolve through the runtime
+            // registry — the default runtime first, then the other enabled runtimes.
+            // Models with an unknown or large enough context window are preferred so
+            // the coding-agent protocol can actually run; tiny toy models are only
+            // chosen when nothing better is registered.
             if (providerRegistry instanceof eu.kalafatic.dcode.config.runtime.RuntimeRegistry runtimes) {
-                var defaultRuntime = runtimes.defaultRuntime();
-                if (defaultRuntime.isPresent()) {
-                    String modelId = runtimes.defaultModel().orElse("");
-                    if (modelId.isBlank()) {
-                        modelId = runtimes.listModels(defaultRuntime.get().id()).stream()
-                                .filter(ModelDefinition::available)
-                                .map(ModelDefinition::id)
-                                .findFirst().orElse("");
+                List<eu.kalafatic.dcode.config.runtime.RuntimeInfo> candidates =
+                        new java.util.ArrayList<>();
+                runtimes.defaultRuntime().ifPresent(candidates::add);
+                runtimes.runtimes().stream()
+                        .filter(eu.kalafatic.dcode.config.runtime.RuntimeInfo::enabled)
+                        .filter(runtime -> candidates.stream().noneMatch(
+                                existing -> existing.id().equals(runtime.id())))
+                        .forEach(candidates::add);
+                for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
+                    List<ModelDefinition> models;
+                    try {
+                        models = runtimes.listModels(runtime.id());
+                    } catch (RuntimeException e) {
+                        continue; // discovery failed on this runtime: try the next
                     }
-                    if (!modelId.isBlank()) {
+                    String registeredDefault = candidates.get(0).id().equals(runtime.id())
+                            ? runtimes.defaultModel().orElse("") : "";
+                    ModelSelection selection = pickModel(runtime.id(), models,
+                            registeredDefault);
+                    if (selection != null) {
                         DCodeLog.info("execution", "No configured model; using "
-                                + modelId + " on default runtime "
-                                + defaultRuntime.get().id());
-                        return new ModelSelection(defaultRuntime.get().id(), modelId);
+                                + selection.modelId() + " on runtime "
+                                + runtime.id());
+                        return selection;
                     }
                 }
             }
             throw routerError;
         }
+    }
+
+    /**
+     * Picks a model for an unconfigured execution: the registered runtime default
+     * model, then the first available model with an unknown or >= 4096 token context
+     * window, then any available model.
+     */
+    private static ModelSelection pickModel(String providerId, List<ModelDefinition> models,
+                                            String registeredDefault) {
+        if (!registeredDefault.isBlank()) {
+            boolean defaultPresent = models.stream()
+                    .anyMatch(model -> model.id().equals(registeredDefault));
+            if (defaultPresent) {
+                return new ModelSelection(providerId, registeredDefault);
+            }
+        }
+        java.util.Optional<ModelDefinition> usable = models.stream()
+                .filter(ModelDefinition::available)
+                .filter(model -> model.contextWindowTokens() <= 0
+                        || model.contextWindowTokens() >= 4096)
+                .findFirst();
+        if (usable.isPresent()) {
+            return new ModelSelection(providerId, usable.get().id());
+        }
+        return models.stream()
+                .filter(ModelDefinition::available)
+                .findFirst()
+                .map(model -> new ModelSelection(providerId, model.id()))
+                .orElse(null);
     }
 
     /**

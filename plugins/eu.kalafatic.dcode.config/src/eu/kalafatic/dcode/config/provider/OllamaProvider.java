@@ -110,9 +110,10 @@ public final class OllamaProvider implements RuntimeAdapter {
             JsonNode details = model.path("details");
             String quantization = details.path("quantization_level").asText("");
             String family = details.path("family").asText("");
+            long contextLength = details.path("context_length").asLong(0);
             Set<String> capabilities = modelCapabilities(model);
-            result.add(new ModelDefinition(name, name, providerId, 0, chatCapable,
-                    sizeBytes, quantization, false, capabilities));
+            result.add(new ModelDefinition(name, name, providerId, contextLength,
+                    chatCapable, sizeBytes, quantization, false, capabilities));
         }
         return result;
     }
