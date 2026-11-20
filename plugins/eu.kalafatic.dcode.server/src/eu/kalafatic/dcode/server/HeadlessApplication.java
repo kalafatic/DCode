@@ -37,8 +37,16 @@ public final class HeadlessApplication implements IApplication {
         List<String> args = applicationArgs(context);
         subcommand = args.isEmpty() ? "" : args.get(0);
         String subArgument = args.size() > 1 ? args.get(1) : "";
-        DCodeLog.setSink((level, source, message, throwable) -> rememberLog(level, source,
-                message));
+        // Console output is preserved (default sink) AND the ring buffer for the
+        // `logs` subcommand records the same entries.
+        DCodeLog.setSink((level, source, message, throwable) -> {
+            System.out.println(java.time.Instant.now() + " " + level.name() + " ["
+                    + source + "] " + message);
+            if (throwable != null) {
+                throwable.printStackTrace(System.out);
+            }
+            rememberLog(level, source, message);
+        });
         System.out.println("[DCode] Headless runtime starting (no UI dependencies)");
         if (subcommand.isBlank()) {
             System.out.println("[DCode] Run with an argument for commands: "
