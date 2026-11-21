@@ -31,4 +31,11 @@
 		<nature>org.eclipse.pde.PluginNature</nature>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>target_classes</name>
+			<type>2</type>
+			<location>//home/petr/git/DCode-121126/plugins/eu.kalafatic.dcode.client/target/classes/</location>
+		</link>
+	</linkedResources>
 </projectDescription>

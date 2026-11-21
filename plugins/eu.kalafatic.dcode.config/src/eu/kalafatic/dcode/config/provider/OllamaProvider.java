@@ -256,17 +256,11 @@ public final class OllamaProvider implements RuntimeAdapter {
 
     @Override
     public ModelDefinition pullModel(String modelId) {
-        ObjectNode body = new ObjectNode(
-                com.fasterxml.jackson.databind.node.JsonNodeFactory.instance);
-        body.put("name", modelId);
-        body.put("stream", false);
-        JsonNode response = http.postJson(baseUrl + "/api/pull", http.write(body),
-                Duration.ofHours(1));
-        String status = response.path("status").asText("");
-        if (!"success".equalsIgnoreCase(status) && response.path("error").isValueNode()) {
-            throw new ProviderException("Ollama pull failed: "
-                    + response.path("error").asText(status));
-        }
+        // Unified model management: pulls run through the shared ENR model
+        // management service (family infrastructure), never through a private
+        // Ollama implementation. ENR's "ollama" provider targets the same
+        // localhost:11434 endpoint by default and is configurable in enr.yaml.
+        new ModelManagementClient().pullAndWait("ollama", modelId, 500, 0);
         return findModel(modelId).orElseGet(() -> new ModelDefinition(modelId, modelId,
                 providerId, 0, true));
     }

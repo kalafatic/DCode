@@ -54,6 +54,7 @@ public final class DCodePerspectiveFactory implements IPerspectiveFactory {
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.connection");
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.providers");
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.models");
+        layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.modelmanager");
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.runtimes");
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.directchat");
         layout.addShowViewShortcut("eu.kalafatic.dcode.ui.views.javatools");

@@ -22,8 +22,8 @@ import java.util.Locale;
  * Workbench and without a display (WP5.8 gate), and provides an ollama/opencode-style
  * command-line interface on top of the same server: {@code status}, {@code runtimes},
  * {@code providers}, {@code models}, {@code sessions}, {@code logs}, {@code web},
- * {@code terminal}, {@code agents}, {@code config}, {@code stop}, {@code restart},
- * {@code help} — all plain or slash-prefixed ({@code /status}).
+ * {@code terminal}, {@code agents}, {@code config}, {@code start}, {@code stop},
+ * {@code restart}, {@code help} — all plain or slash-prefixed ({@code /status}).
  *
  * <p>Commands are defined once in a {@link #commands} table that both dispatches and
  * generates help — there is no separate static help text. With a command argument the
@@ -135,6 +135,16 @@ public final class HeadlessApplication implements IApplication {
                       workspaces directory. Secrets are never printed.
                       show          same output (explicit form)""",
                     this::cmdConfig),
+            new Command("start", "start",
+                    "verify/start the DCode server on the configured port",
+                    """
+                    start
+                      The DCode server starts automatically with the headless
+                      application (daemon or interactive REPL). This command
+                      verifies the server on the configured port and prints its
+                      readiness; when nothing is listening it prints how to start
+                      the server (launch dcode-headless without a command).""",
+                    this::cmdStart),
             new Command("stop", "stop",
                     "stop the DCode server process on this port",
                     """
@@ -166,8 +176,9 @@ public final class HeadlessApplication implements IApplication {
                     help [topic]
                       Without a topic: every command with syntax and short help.
                       With a topic: the detailed help of that one command.
-                      /help /status /web /terminal /models /sessions /providers
-                      /agents /config /logs /exit — slash forms are equivalent.""",
+                      /help /status /start /stop /restart /web /terminal /models
+                      /sessions /providers /agents /config /logs /exit — slash
+                      forms are equivalent.""",
                     this::cmdHelp));
 
     private volatile boolean stopped;
@@ -215,7 +226,7 @@ public final class HeadlessApplication implements IApplication {
         // Daemon/service: no TTY, no subcommand — run the server in the foreground.
         CONSOLE.println("[DCode] No terminal and no subcommand — running as a service. "
                 + "Commands: status runtimes providers models sessions logs web terminal "
-                + "agents config stop restart help");
+                + "agents config start stop restart help");
         while (!stopped) {
             try {
                 synchronized (this) {
@@ -598,6 +609,21 @@ public final class HeadlessApplication implements IApplication {
         CONSOLE.println("  workspaces: " + dataDir.resolve("workspaces"));
         CONSOLE.println("  endpoint:   " + endpoint);
         return 0;
+    }
+
+    private int cmdStart(List<String> args, String endpoint) throws Exception {
+        int configuredPort = integerProperty("dcode.port",
+                eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
+        if (portOccupied(configuredPort)) {
+            JsonNode status = getJson(endpoint + "/api/v1/status");
+            CONSOLE.println("[DCode] Server already running on port " + configuredPort
+                    + " — ready=" + status.path("ready").asBoolean());
+            return 0;
+        }
+        CONSOLE.println("[DCode] Nothing is listening on port " + configuredPort
+                + ". Start DCode with:");
+        CONSOLE.println("  dcode-headless   (daemon or interactive dcode> REPL)");
+        return 1;
     }
 
     private int cmdStop(List<String> args, String endpoint) throws Exception {

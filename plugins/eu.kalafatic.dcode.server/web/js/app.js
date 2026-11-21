@@ -346,6 +346,8 @@ window.DCodeApp = (function () {
             DCodeRuntimes.renderRuntimes(content);
         } else if (view === 'models') {
             DCodeRuntimes.renderModels(content);
+        } else if (view === 'modelmanager') {
+            DCodeModelManager.render(content);
         } else if (view === 'tools') {
             DCodeTooling.render(content);
         } else if (view === 'activity') {

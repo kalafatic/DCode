@@ -2,6 +2,7 @@ package eu.kalafatic.dcode.ui.views;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import eu.kalafatic.dcode.core.model.Workspace;
+import eu.kalafatic.dcode.ui.DesktopActions;
 import eu.kalafatic.dcode.ui.RuntimeConnection;
 import eu.kalafatic.dcode.ui.Ui;
 import eu.kalafatic.dcode.ui.editors.DCodeFileEditorInput;
@@ -121,6 +122,18 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                 refreshContent();
             }
         });
+        menu.add(new Action("Copy Path") {
+            @Override
+            public void run() {
+                copyToClipboard(workspace.rootPath());
+            }
+        });
+        menu.add(new Action("Open Terminal") {
+            @Override
+            public void run() {
+                DesktopActions.openTerminalIn(workspace.rootPath());
+            }
+        });
     }
 
     private void fillRepositoryMenu(IMenuManager menu, RepoNode repoNode) {
@@ -193,6 +206,21 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                 openFile(fileNode);
             }
         });
+        menu.add(new Action("Copy Path") {
+            @Override
+            public void run() {
+                copyToClipboard(fileNode.workspace().rootPath() + "/" + fileNode.path());
+            }
+        });
+        if (fileNode.directory()) {
+            menu.add(new Action("Open Terminal") {
+                @Override
+                public void run() {
+                    DesktopActions.openTerminalIn(fileNode.workspace().rootPath()
+                            + "/" + fileNode.path());
+                }
+            });
+        }
         if (fileNode.path().endsWith(".java")) {
             menu.add(new Action("AST summary") {
                 @Override
@@ -237,6 +265,25 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                             "eu.kalafatic.dcode.ui.editors.file");
         } catch (Exception e) {
             Ui.log("error", "cannot open " + fileNode.path() + ": " + e.getMessage());
+        }
+    }
+
+    /** Copies a path to the clipboard (single implementation for all explorer nodes). */
+    private void copyToClipboard(String path) {
+        if (path == null || path.isBlank()) {
+            Ui.log("error", "No local path known for the selection (server-side entry)");
+            return;
+        }
+        try {
+            org.eclipse.swt.dnd.Clipboard clipboard =
+                    new org.eclipse.swt.dnd.Clipboard(tree.getDisplay());
+            clipboard.setContents(new Object[]{path},
+                    new org.eclipse.swt.dnd.Transfer[]{
+                            org.eclipse.swt.dnd.TextTransfer.getInstance()});
+            clipboard.dispose();
+            Ui.log("info", "Path copied: " + path);
+        } catch (Exception e) {
+            Ui.log("error", "Copy path failed: " + e.getMessage());
         }
     }
 
@@ -335,7 +382,7 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                             boolean dir = "dir".equals(entry.path("type").asText());
                             TreeItem child = new TreeItem(repoItem, SWT.NONE);
                             child.setText(name);
-                            child.setData(new FileNode(workspace, repoName, path));
+                            child.setData(new FileNode(workspace, repoName, path, dir));
                             if (dir) {
                                 new TreeItem(child, SWT.NONE).setText("loading…");
                                 child.addListener(SWT.Expand,
@@ -359,7 +406,8 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
                             boolean dir = "dir".equals(entry.path("type").asText());
                             TreeItem child = new TreeItem(item, SWT.NONE);
                             child.setText(name);
-                            child.setData(new FileNode(workspace, repoName, childPath));
+                            child.setData(new FileNode(workspace, repoName, childPath,
+                                    dir));
                             if (dir) {
                                 new TreeItem(child, SWT.NONE).setText("loading…");
                                 child.addListener(SWT.Expand,
@@ -379,6 +427,7 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
     record RepoNode(Workspace workspace, String repositoryId, String repositoryName) {
     }
 
-    record FileNode(Workspace workspace, String repositoryName, String path) {
+    record FileNode(Workspace workspace, String repositoryName, String path,
+                    boolean directory) {
     }
 }

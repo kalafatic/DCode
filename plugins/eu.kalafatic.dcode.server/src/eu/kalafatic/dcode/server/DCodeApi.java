@@ -9,6 +9,7 @@ import eu.kalafatic.dcode.config.provider.ChatMessage;
 import eu.kalafatic.dcode.config.provider.ChatRequest;
 import eu.kalafatic.dcode.config.provider.ChatResponse;
 import eu.kalafatic.dcode.config.provider.ConnectionTestResult;
+import eu.kalafatic.dcode.config.provider.ModelManagementClient;
 import eu.kalafatic.dcode.config.provider.ProviderException;
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
 import eu.kalafatic.dcode.config.runtime.RuntimeInfo;
@@ -247,7 +248,7 @@ public final class DCodeApi {
                 return payload(handleAgents(method, parts, session));
             }
             if (parts.length >= 2 && parts[1].equals("models")) {
-                return payload(requireGet(method, models(session.getParms().get("runtimeId"))));
+                return payload(handleModels(method, parts, session));
             }
             if (parts.length >= 2 && parts[1].equals("tools")) {
                 if (parts.length == 4 && parts[3].equals("execute") && method.equals("POST")) {
@@ -258,6 +259,8 @@ public final class DCodeApi {
             throw new NotFoundException("Unknown route: " + path);
         } catch (NotFoundException e) {
             return errorPayload(404, "NOT_FOUND", e.getMessage(), false);
+        } catch (ProviderException e) {
+            return errorPayload(503, "UPSTREAM_UNAVAILABLE", e.getMessage(), true);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return errorPayload(400, "VALIDATION_FAILED", e.getMessage(), false);
         } catch (eu.kalafatic.dcode.core.service.InvalidStateTransitionException e) {
@@ -1160,6 +1163,101 @@ public final class DCodeApi {
             }
         }
         throw new NotFoundException("Unknown route segment");
+    }
+
+    // ---- unified model management (shared ENR infrastructure) ----
+
+    private final ModelManagementClient modelManagementClient = new ModelManagementClient();
+
+    /**
+     * Parses a raw JSON document returned by the shared model management
+     * client (Jackson types never cross the OSGi bundle boundary; each
+     * bundle parses with its own mapper).
+     */
+    private JsonNode parseUpstream(String json) {
+        try {
+            return json == null || json.isBlank() ? mapper.createObjectNode() : mapper.readTree(json);
+        } catch (IOException e) {
+            throw new ProviderException("ENR model management returned invalid JSON", e);
+        }
+    }
+
+    /**
+     * /api/v1/models — runtime model listing (unchanged), plus the unified
+     * model management surface consumed from the shared ENR service:
+     * providers, per-provider installed/available models, pull jobs with
+     * progress, cancellation and removal. No model management state or job
+     * tracking lives in DCode.
+     */
+    private String handleModels(String method, String[] parts,
+                                NanoHTTPD.IHTTPSession session) throws IOException {
+        if (parts.length == 2) {
+            return requireGet(method, models(session.getParms().get("runtimeId")));
+        }
+        String sub = parts[2];
+        switch (sub) {
+            case "providers" -> {
+                if (parts.length == 3 && method.equals("GET")) {
+                    return ok(parseUpstream(modelManagementClient.providersJson()));
+                }
+            }
+            case "jobs" -> {
+                if (parts.length == 3 && method.equals("GET")) {
+                    return ok(parseUpstream(modelManagementClient.downloadsJson()));
+                }
+                if (parts.length == 4) {
+                    String jobId = java.net.URLDecoder.decode(parts[3],
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    switch (method) {
+                        case "GET" -> {
+                            return ok(parseUpstream(modelManagementClient.statusJson(jobId)));
+                        }
+                        case "DELETE" -> {
+                            return ok(parseUpstream(modelManagementClient.cancelJson(jobId)));
+                        }
+                        default -> {
+                        }
+                    }
+                }
+            }
+            default -> {
+                String provider = java.net.URLDecoder.decode(sub,
+                        java.nio.charset.StandardCharsets.UTF_8);
+                if (parts.length == 4) {
+                    String action = parts[3];
+                    switch (action) {
+                        case "installed" -> {
+                            return requireGet(method,
+                                    ok(parseUpstream(modelManagementClient.installedJson(provider))));
+                        }
+                        case "available" -> {
+                            return requireGet(method,
+                                    ok(parseUpstream(modelManagementClient.availableJson(provider))));
+                        }
+                        case "pull" -> {
+                            if (!method.equals("POST")) {
+                                throw new NotFoundException("POST expected for model pull");
+                            }
+                            JsonNode body = parseBody(session);
+                            String model = body.path("model").asText("");
+                            if (model.isBlank()) {
+                                throw new IllegalArgumentException("Field 'model' is required");
+                            }
+                            return ok(parseUpstream(modelManagementClient.pullJson(provider, model)));
+                        }
+                        default -> {
+                            if (method.equals("DELETE")) {
+                                String modelId = java.net.URLDecoder.decode(action,
+                                        java.nio.charset.StandardCharsets.UTF_8);
+                                return ok(parseUpstream(
+                                        modelManagementClient.removeJson(provider, modelId)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        throw new NotFoundException("Unknown model management route");
     }
 
     // ---- direct inference chat (no coding task involved) ----

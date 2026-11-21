@@ -91,7 +91,12 @@ public final class DurableConfigurationService implements ConfigurationService {
                         root.path("managementPort").asInt(initial.managementPort()),
                         root.path("bindAddress").asText(initial.bindAddress()),
                         root.path("nodeId").asText(initial.nodeId()),
-                        root.path("appVersion").asText(initial.appVersion()));
+                        root.path("appVersion").asText(initial.appVersion()),
+                        root.path("defaultProvider").asText(initial.defaultProvider()),
+                        root.path("providerEndpoint").asText(initial.providerEndpoint()),
+                        root.path("harnessType").asText(initial.harnessType()),
+                        root.path("agentRole").asText(initial.agentRole()),
+                        root.path("defaultModel").asText(initial.defaultModel()));
                 return loaded;
             }
             persistConfiguration(initial);
@@ -115,6 +120,11 @@ public final class DurableConfigurationService implements ConfigurationService {
             map.put("bindAddress", configuration.bindAddress());
             map.put("nodeId", configuration.nodeId());
             map.put("appVersion", configuration.appVersion());
+            map.put("defaultProvider", configuration.defaultProvider());
+            map.put("providerEndpoint", configuration.providerEndpoint());
+            map.put("harnessType", configuration.harnessType());
+            map.put("agentRole", configuration.agentRole());
+            map.put("defaultModel", configuration.defaultModel());
             Files.writeString(configFile, mapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(map));
         } catch (Exception e) {

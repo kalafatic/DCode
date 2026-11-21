@@ -209,12 +209,14 @@ web                  open the web interface in the system browser
 terminal [dir]       open a system terminal (optionally in a directory)
 agents list          agent list with the default marker (GET /api/v1/agents)
 config show          effective config summary: port, data dir, workspaces dir (no secrets)
+start                verify/start the DCode server on the configured port
 stop                 stop the DCode server process on this port
 restart              stop the server (start it again afterwards)
 exit                 leave the interactive REPL (no-op as a launch argument)
 help [topic]         this help, or the help of one command
-                    (/help /status /web /terminal /models /sessions /providers
-                     /agents /config /logs /exit — slash forms are equivalent)</code></pre>
+                    (/help /status /start /stop /restart /web /terminal /models
+                     /sessions /providers /agents /config /logs /exit — slash
+                     forms are equivalent)</code></pre>
 </section>
 
 <section id="diagnostics">

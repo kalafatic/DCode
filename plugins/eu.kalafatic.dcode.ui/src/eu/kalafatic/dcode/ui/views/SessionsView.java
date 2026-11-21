@@ -44,12 +44,10 @@ public final class SessionsView extends ViewPart implements Ui.Refreshable {
     }
 
     private void openSession(Session session) {
-        RuntimeConnection.instance().setActiveSession(session);
-        Ui.connectSessionStream(session);
-        Ui.log("session active: " + session.getId() + " (" + session.getState() + ")");
+        SessionActions.open(session);
     }
 
-    /** Context menu for session items: open, submit task, cancel, review changes. */
+    /** Context menu for session items: open, rename, delete, cancel execution. */
     private void hookContextMenu() {
         org.eclipse.jface.action.MenuManager manager =
                 new org.eclipse.jface.action.MenuManager();
@@ -63,6 +61,20 @@ public final class SessionsView extends ViewPart implements Ui.Refreshable {
                 @Override
                 public void run() {
                     openSession(session);
+                }
+            });
+            menu.add(new Action("Rename\u2026") {
+                @Override
+                public void run() {
+                    SessionActions.rename(tree.getShell(), session,
+                            SessionsView.this::refreshContent);
+                }
+            });
+            menu.add(new Action("Delete") {
+                @Override
+                public void run() {
+                    SessionActions.delete(tree.getShell(), session,
+                            SessionsView.this::refreshContent);
                 }
             });
             if (session.getState() == eu.kalafatic.dcode.core.model.SessionState.RUNNING) {

@@ -479,6 +479,45 @@ public final class DCodeApiClient {
                 + urlEncode(modelId) + "/" + action, mapper.createObjectNode());
     }
 
+    // ---- unified model management (shared ENR infrastructure) ----
+
+    /** GET /api/v1/models/providers */
+    public CompletableFuture<JsonNode> modelProviders() {
+        return get("/api/v1/models/providers");
+    }
+
+    /** GET /api/v1/models/jobs — all shared download jobs (newest first). */
+    public CompletableFuture<JsonNode> modelDownloads() {
+        return get("/api/v1/models/jobs");
+    }
+
+    /** GET /api/v1/models/{provider}/installed */
+    public CompletableFuture<JsonNode> modelInstalled(String provider) {
+        return get("/api/v1/models/" + urlEncode(provider) + "/installed");
+    }
+
+    /** POST /api/v1/models/{provider}/pull — returns the shared download job. */
+    public CompletableFuture<JsonNode> modelPull(String provider, String model) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("model", model);
+        return post("/api/v1/models/" + urlEncode(provider) + "/pull", body);
+    }
+
+    /** GET /api/v1/models/jobs/{jobId} */
+    public CompletableFuture<JsonNode> modelJobStatus(String jobId) {
+        return get("/api/v1/models/jobs/" + urlEncode(jobId));
+    }
+
+    /** DELETE /api/v1/models/jobs/{jobId} */
+    public CompletableFuture<JsonNode> modelJobCancel(String jobId) {
+        return delete("/api/v1/models/jobs/" + urlEncode(jobId));
+    }
+
+    /** DELETE /api/v1/models/{provider}/{modelId} */
+    public CompletableFuture<JsonNode> modelRemove(String provider, String modelId) {
+        return delete("/api/v1/models/" + urlEncode(provider) + "/" + urlEncode(modelId));
+    }
+
     // ---- direct inference chat (no coding task involved) ----
 
     public CompletableFuture<JsonNode> inferenceChat(String runtimeId, String model,

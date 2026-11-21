@@ -80,6 +80,7 @@ body { display: flex; flex-direction: column; }
 .btn-danger:hover { background: rgba(217, 102, 102, 0.12); }
 .btn-small { padding: 2px 8px; font-size: 11px; }
 .btn-tool { padding: 2px 8px; font-size: 11px; background: transparent; }
+a.btn { display: inline-block; text-decoration: none; }
 
 /* ---------- layout ---------- */
 #main {

@@ -30,6 +30,17 @@ public final class DesktopActions {
         if (directory == null || directory.isBlank()) {
             directory = System.getProperty("user.home", ".");
         }
+        openTerminalIn(directory);
+    }
+
+    /**
+     * Opens a system terminal in the given directory (same single implementation
+     * used by the Tools menu and the explorer context menus).
+     */
+    public static void openTerminalIn(String directory) {
+        if (directory == null || directory.isBlank()) {
+            directory = System.getProperty("user.home", ".");
+        }
         String[] command = terminalCommand(directory);
         if (command == null) {
             Ui.log("error", "No supported terminal emulator found on this system "

@@ -73,13 +73,55 @@ public final class ModelsView extends ViewPart implements Ui.Refreshable {
         org.eclipse.jface.action.MenuManager manager =
                 new org.eclipse.jface.action.MenuManager();
         manager.setRemoveAllWhenShown(true);
-        manager.addMenuListener(menu -> menu.add(new Action("Refresh") {
-            @Override
-            public void run() {
-                refreshContent();
-            }
-        }));
+        manager.addMenuListener(menu -> {
+            menu.add(new Action("Load") {
+                @Override
+                public void run() {
+                    modelAction("load");
+                }
+            });
+            menu.add(new Action("Unload") {
+                @Override
+                public void run() {
+                    modelAction("unload");
+                }
+            });
+            menu.add(new Action("Pull") {
+                @Override
+                public void run() {
+                    modelAction("pull");
+                }
+            });
+            menu.add(new Action("Set as default") {
+                @Override
+                public void run() {
+                    setDefaultModel();
+                }
+            });
+            menu.add(new Action("Refresh") {
+                @Override
+                public void run() {
+                    refreshContent();
+                }
+            });
+        });
         tree.setMenu(manager.createContextMenu(tree));
+    }
+
+    private void setDefaultModel() {
+        ModelEntry entry = selectedModel();
+        if (entry == null) {
+            Ui.log("error", "Select a model first");
+            return;
+        }
+        Ui.run(RuntimeConnection.instance().api().setDefaultRuntime(entry.runtimeId,
+                        entry.model.path("id").asText("")),
+                json -> {
+                    Ui.log("info", "Default model set: "
+                            + entry.model.path("id").asText("") + " on "
+                            + entry.runtimeId);
+                    refreshContent();
+                }, "set default model");
     }
 
     private void contributeActions() {

@@ -66,6 +66,10 @@
             id="eu.kalafatic.dcode.ui.views.models"
             name="Model Explorer"/>
       <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.ModelManagerView"
+            id="eu.kalafatic.dcode.ui.views.modelmanager"
+            name="Model Manager"/>
+      <view category="eu.kalafatic.dcode.ui"
             class="eu.kalafatic.dcode.ui.views.DirectChatView"
             id="eu.kalafatic.dcode.ui.views.directchat"
             name="Direct Inference Chat"/>

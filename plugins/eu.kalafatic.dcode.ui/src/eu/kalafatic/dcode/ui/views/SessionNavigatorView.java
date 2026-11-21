@@ -60,6 +60,8 @@ public final class SessionNavigatorView extends ViewPart implements Ui.Refreshab
         table.addListener(SWT.MouseDoubleClick, event -> openSelected());
         table.addListener(SWT.Selection, event -> showSummary());
 
+        hookContextMenu();
+
         getViewSite().getActionBars().getToolBarManager().add(new Action("New session…") {
             @Override
             public void run() {
@@ -103,11 +105,42 @@ public final class SessionNavigatorView extends ViewPart implements Ui.Refreshab
         if (index < 0 || index >= sessions.size()) {
             return;
         }
-        Session session = sessions.get(index);
-        RuntimeConnection.instance().setActiveSession(session);
-        Ui.connectSessionStream(session);
-        Ui.log("info", "Session " + session.getId() + " active (" + session.getState()
-                + ") — continue in the AI Workspace");
+        SessionActions.open(sessions.get(index));
+    }
+
+    /** Context menu: the same open/rename/delete operations as the Sessions view. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            int index = table.getSelectionIndex();
+            if (index < 0 || index >= sessions.size()) {
+                return;
+            }
+            Session session = sessions.get(index);
+            menu.add(new Action("Open") {
+                @Override
+                public void run() {
+                    openSelected();
+                }
+            });
+            menu.add(new Action("Rename\u2026") {
+                @Override
+                public void run() {
+                    SessionActions.rename(table.getShell(), session,
+                            SessionNavigatorView.this::refreshContent);
+                }
+            });
+            menu.add(new Action("Delete") {
+                @Override
+                public void run() {
+                    SessionActions.delete(table.getShell(), session,
+                            SessionNavigatorView.this::refreshContent);
+                }
+            });
+        });
+        table.setMenu(manager.createContextMenu(table));
     }
 
     private void showSummary() {

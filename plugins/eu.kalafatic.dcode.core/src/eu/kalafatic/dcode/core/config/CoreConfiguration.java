@@ -7,15 +7,20 @@ import java.util.Objects;
  * Central runtime configuration of a DCode instance. Shared by headless, RCP and web modes;
  * there is deliberately no per-client configuration duplication.
  *
- * @param dataDir       root data directory of this instance (database, artifacts, logs)
- * @param workspacesDir where workspace metadata and repository worktrees live
- * @param artifactsDir  large session artifacts
- * @param logsDir       log files
- * @param httpPort      primary HTTP port (0 = allocate from the default range)
- * @param managementPort management port (0 = allocate)
- * @param bindAddress   bind address (default 127.0.0.1)
- * @param nodeId        stable node identity
- * @param appVersion    application version string
+ * @param dataDir           root data directory of this instance (database, artifacts, logs)
+ * @param workspacesDir     where workspace metadata and repository worktrees live
+ * @param artifactsDir      large session artifacts
+ * @param logsDir           log files
+ * @param httpPort          primary HTTP port (0 = allocate from the default range)
+ * @param managementPort    management port (0 = allocate)
+ * @param bindAddress       bind address (default 127.0.0.1)
+ * @param nodeId            stable node identity
+ * @param appVersion        application version string
+ * @param defaultProvider   default provider type (e.g. "ollama", "openai")
+ * @param providerEndpoint  configured endpoint for the default provider
+ * @param harnessType       selected harness type (e.g. "dcode", "opencode", "aider")
+ * @param agentRole         default agent role for executions
+ * @param defaultModel      default model name or id
  */
 public record CoreConfiguration(
         Path dataDir,
@@ -26,7 +31,12 @@ public record CoreConfiguration(
         int managementPort,
         String bindAddress,
         String nodeId,
-        String appVersion
+        String appVersion,
+        String defaultProvider,
+        String providerEndpoint,
+        String harnessType,
+        String agentRole,
+        String defaultModel
 ) {
     public CoreConfiguration {
         Objects.requireNonNull(dataDir, "dataDir");
@@ -37,6 +47,9 @@ public record CoreConfiguration(
         nodeId = nodeId == null ? "dcode-node-01" : nodeId;
     }
 
+    /**
+     * Default configuration with sensible defaults.
+     */
     public static CoreConfiguration defaults(Path homeDir) {
         return new CoreConfiguration(
                 homeDir,
@@ -47,6 +60,11 @@ public record CoreConfiguration(
                 0,
                 "127.0.0.1",
                 "dcode-node-01",
-                "2.6.11");
+                "2.6.11",
+                "ollama",           // defaultProvider
+                "http://127.0.0.1:11434", // providerEndpoint
+                "dcode",            // harnessType
+                "MAIN",             // agentRole
+                "qwen2.5-coder:32b"); // defaultModel
     }
 }
