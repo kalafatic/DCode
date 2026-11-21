@@ -74,7 +74,14 @@ public final class DCodeHttpServer extends NanoHTTPD {
             String relative = sanitize(path);
             java.io.InputStream stream = staticContent.open(relative);
             if (stream == null) {
-                // SPA fallback: unknown paths serve the application shell.
+                // Explicit files (settings.html, *.js, *.css, …) must 404 when absent.
+                // Only extensionless application routes fall back to the SPA shell,
+                // so a missing Settings page can never silently render the Web app.
+                if (relative.contains(".")) {
+                    return json(Response.Status.NOT_FOUND,
+                            api.error("NOT_FOUND", "Resource not found: " + path,
+                                    null, false));
+                }
                 stream = staticContent.open("index.html");
             }
             if (stream == null) {
