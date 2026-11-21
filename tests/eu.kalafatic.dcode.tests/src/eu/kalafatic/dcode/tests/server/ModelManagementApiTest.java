@@ -48,6 +48,7 @@ class ModelManagementApiTest {
     private String baseUrl;
     private HttpClient client;
     private final ObjectMapper mapper = new ObjectMapper();
+    private String previousEnrEndpoint;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -82,6 +83,7 @@ class ModelManagementApiTest {
                 "{\"provider\":\"ollama\",\"model\":\"llama3:8b\",\"removed\":true}"));
         enr.on("GET", "/api/v1/models/providers/nope/installed", exchange -> enr.respond(exchange, 404,
                 "{\"error\":{\"code\":\"PROVIDER_NOT_FOUND\",\"message\":\"Unknown model provider: nope\"}}"));
+        previousEnrEndpoint = System.getProperty("dcode.enr.endpoint");
         System.setProperty("dcode.enr.endpoint", enr.baseUrl());
 
         InMemoryEventBus bus = new InMemoryEventBus(null, t -> {});
@@ -113,7 +115,15 @@ class ModelManagementApiTest {
 
     @AfterEach
     void tearDown() {
-        System.clearProperty("dcode.enr.endpoint");
+        // Restore the externally configured live endpoint instead of wiping it:
+        // the Tycho suite runs all test classes in one JVM, and clearing this
+        // property here used to break EnrLiveIntegrationTest (later in the run).
+        if (previousEnrEndpoint == null) {
+            System.clearProperty("dcode.enr.endpoint");
+        } else {
+            System.setProperty("dcode.enr.endpoint", previousEnrEndpoint);
+        }
+        previousEnrEndpoint = null;
         if (server != null) {
             server.stop();
         }

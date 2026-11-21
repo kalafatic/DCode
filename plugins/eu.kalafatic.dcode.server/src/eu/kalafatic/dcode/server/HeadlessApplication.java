@@ -3,8 +3,10 @@ package eu.kalafatic.dcode.server;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.kalafatic.dcode.core.log.DCodeLog;
+import eu.kalafatic.dcode.core.server.WebServerControl;
 import org.eclipse.equinox.app.IApplication;
 import org.eclipse.equinox.app.IApplicationContext;
+import org.osgi.framework.FrameworkUtil;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -162,6 +164,35 @@ public final class HeadlessApplication implements IApplication {
                       DCode again (the dcode-headless launcher or your service
                       manager) once the port is released.""",
                     this::cmdRestart),
+            new Command("server-status", "server-status",
+                    "local web server lifecycle state",
+                    """
+                    server-status
+                      State of the web server running inside this process
+                      (DISABLED / STOPPED / STARTING / RUNNING / STOPPING / FAILED)
+                      with the bound URL when running.""",
+                    this::cmdServerStatus),
+            new Command("server-start", "server-start",
+                    "start the web server in this process",
+                    """
+                    server-start
+                      Starts the web server of this process. Use it when
+                      webServer.autoStart=false in dcode-config.json. Fails when
+                      webServer.enabled=false.""",
+                    this::cmdServerStart),
+            new Command("server-stop", "server-stop",
+                    "stop the web server in this process",
+                    """
+                    server-stop
+                      Stops the web server of this process, releasing its port.
+                      The backend keeps running; server-start starts it again.""",
+                    this::cmdServerStop),
+            new Command("server-restart", "server-restart",
+                    "restart the web server in this process",
+                    """
+                    server-restart
+                      Clean stop/start sequence of the web server in this process.""",
+                    this::cmdServerRestart),
             new Command("exit", "exit",
                     "leave the interactive REPL",
                     """
@@ -209,7 +240,15 @@ public final class HeadlessApplication implements IApplication {
         String endpoint = "http://127.0.0.1:" + configuredPort;
         if (!first.isBlank()) {
             // Wait for this instance to finish binding when it is the primary server.
-            if (awaitServer(configuredPort)) {
+            // The local server-control commands do not need the HTTP endpoint; they
+            // drive the server inside this process (used when auto-start is off).
+            String normalized = normalize(first);
+            boolean localControlCommand = normalized.equals("server-start")
+                    || normalized.equals("server-stop")
+                    || normalized.equals("server-restart")
+                    || normalized.equals("server-status")
+                    || normalized.equals("config");
+            if (!localControlCommand && awaitServer(configuredPort)) {
                 return Integer.valueOf(1);
             }
             return Integer.valueOf(dispatch(first, args.subList(1, args.size()), endpoint));
@@ -605,6 +644,11 @@ public final class HeadlessApplication implements IApplication {
         CONSOLE.println("  port:       " + configuredPort
                 + (boundPort == null ? " (not bound in this process)"
                 : " (bound: " + boundPort + ")"));
+        WebServerControl control = localServerControl();
+        CONSOLE.println("  web server: " + (control == null
+                ? "not controlled from this process"
+                : control.state() + (control.isRunning()
+                        ? " (" + control.url() + ")" : "")));
         CONSOLE.println("  data dir:   " + dataDir);
         CONSOLE.println("  workspaces: " + dataDir.resolve("workspaces"));
         CONSOLE.println("  endpoint:   " + endpoint);
@@ -619,6 +663,19 @@ public final class HeadlessApplication implements IApplication {
             CONSOLE.println("[DCode] Server already running on port " + configuredPort
                     + " — ready=" + status.path("ready").asBoolean());
             return 0;
+        }
+        // auto-start disabled: start the server inside this process instead.
+        WebServerControl control = localServerControl();
+        if (control != null) {
+            try {
+                control.start();
+                CONSOLE.println("[DCode] Web server started in this process: "
+                        + control.url());
+                return 0;
+            } catch (RuntimeException e) {
+                CONSOLE.println("[DCode] Failed: " + e.getMessage());
+                return 1;
+            }
         }
         CONSOLE.println("[DCode] Nothing is listening on port " + configuredPort
                 + ". Start DCode with:");
@@ -637,6 +694,78 @@ public final class HeadlessApplication implements IApplication {
                 + "dcode-headless launcher or your service manager) once the "
                 + "port is released.");
         return 0;
+    }
+
+    private int cmdServerStatus(List<String> args, String endpoint) {
+        WebServerControl control = localServerControl();
+        if (control == null) {
+            CONSOLE.println("[DCode] No local server control in this process.");
+            return 1;
+        }
+        CONSOLE.println("[DCode] Web server state: " + control.state()
+                + (control.isRunning() ? " (" + control.url() + ")" : ""));
+        return 0;
+    }
+
+    private int cmdServerStart(List<String> args, String endpoint) {
+        WebServerControl control = localServerControl();
+        if (control == null) {
+            CONSOLE.println("[DCode] No local server control in this process.");
+            return 1;
+        }
+        try {
+            control.start();
+            CONSOLE.println("[DCode] Web server started: " + control.url());
+            return 0;
+        } catch (RuntimeException e) {
+            CONSOLE.println("[DCode] Failed to start web server: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    private int cmdServerStop(List<String> args, String endpoint) {
+        WebServerControl control = localServerControl();
+        if (control == null) {
+            CONSOLE.println("[DCode] No local server control in this process.");
+            return 1;
+        }
+        control.stop();
+        CONSOLE.println("[DCode] Web server stopped (state: " + control.state() + ").");
+        return 0;
+    }
+
+    private int cmdServerRestart(List<String> args, String endpoint) {
+        WebServerControl control = localServerControl();
+        if (control == null) {
+            CONSOLE.println("[DCode] No local server control in this process.");
+            return 1;
+        }
+        try {
+            control.restart();
+            CONSOLE.println("[DCode] Web server restarted: " + control.url());
+            return 0;
+        } catch (RuntimeException e) {
+            CONSOLE.println("[DCode] Failed to restart web server: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    /** Local in-process server control (the WebServerControl OSGi service). */
+    private WebServerControl localServerControl() {
+        try {
+            var bundle = FrameworkUtil.getBundle(HeadlessApplication.class);
+            if (bundle == null) {
+                return null;
+            }
+            var context = bundle.getBundleContext();
+            if (context == null) {
+                return null;
+            }
+            var reference = context.getServiceReference(WebServerControl.class);
+            return reference == null ? null : context.getService(reference);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private int cmdExit(List<String> args, String endpoint) {

@@ -20,7 +20,17 @@
       <vmArgs>-Xms256m -Xmx2g</vmArgs>
    </launcherArgs>
 
-   <launcher name="dcode"/>
+   <launcher name="dcode">
+      <win useIco="false">
+         <bmp/>
+      </win>
+   </launcher>
+
+   <splash
+         location="eu.kalafatic.dcode.ui"
+         startupProgressRect="48,352,555,4"
+         startupMessageRect="48,332,555,8"
+         startupForegroundColor="8FA5FF"/>
 
    <features>
       <feature id="eu.kalafatic.dcode.feature"/>
@@ -29,6 +39,7 @@
    </features>
 
    <configurations>
+      <plugin id="org.apache.felix.scr" autoStart="true" startLevel="2"/>
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="4"/>
       <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2"/>
       <plugin id="org.eclipse.equinox.event" autoStart="true" startLevel="2"/>

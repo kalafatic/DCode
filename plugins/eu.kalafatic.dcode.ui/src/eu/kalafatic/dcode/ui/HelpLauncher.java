@@ -23,7 +23,14 @@ public final class HelpLauncher {
     /** Opens the help page at the given anchor (e.g. {@code getting-started}). */
     public static void openHelpTopic(String anchor) {
         String topic = anchor == null || anchor.isBlank() ? TOPIC_TOP : anchor;
-        DesktopActions.launchBrowser(helpUrl(topic));
+        String baseUrl = baseUrl();
+        if (baseUrl == null) {
+            Ui.log("error", "No DCode web server known — help is served by the "
+                    + "verified DCode backend only. Fix the connection "
+                    + "(Window ▸ Connection) first.");
+            return;
+        }
+        DesktopActions.launchBrowser(baseUrl + HELP_PATH + "#" + topic);
     }
 
     /** Opens the help overview ("Help Contents"). */
@@ -62,24 +69,13 @@ public final class HelpLauncher {
         };
     }
 
-    private static String helpUrl(String anchor) {
-        return baseUrl() + HELP_PATH + "#" + anchor;
-    }
-
     /**
-     * Resolves the backend base URL: the live connection endpoint first (the same
-     * mechanism as the web-interface action), then the bound-port system property
-     * published by the embedded server, then the DCode default.
+     * Resolves the base URL of the DCode web surface through the single shared
+     * resolver ({@link RuntimeConnection#webBaseUrl()}): the verified DCode backend
+     * or the embedded local server. Returns {@code null} when neither exists —
+     * callers show guidance instead of opening a foreign endpoint.
      */
     static String baseUrl() {
-        String endpoint = RuntimeConnection.instance().endpoint();
-        if (endpoint != null && !endpoint.isBlank()) {
-            return endpoint;
-        }
-        String port = System.getProperty("dcode.server.port");
-        if (port != null && !port.isBlank()) {
-            return "http://127.0.0.1:" + port;
-        }
-        return "http://127.0.0.1:48080";
+        return RuntimeConnection.instance().webBaseUrl();
     }
 }

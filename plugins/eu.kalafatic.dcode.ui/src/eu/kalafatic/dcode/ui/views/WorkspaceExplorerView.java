@@ -70,7 +70,49 @@ public final class WorkspaceExplorerView extends ViewPart implements Ui.Refresha
             }
         });
         hookContextMenu();
+        hookDoubleClick();
         refreshContent();
+    }
+
+    /**
+     * Double-click: workspace/repository activates the shared harness editor (Web +
+     * Settings — the main working area); a file opens the source editor; a directory
+     * expands in place.
+     */
+    private void hookDoubleClick() {
+        tree.addListener(SWT.MouseDoubleClick, event -> {
+            TreeItem[] selection = tree.getSelection();
+            if (selection.length == 0) {
+                return;
+            }
+            Object data = selection[0].getData();
+            if (data instanceof Workspace || data instanceof RepoNode) {
+                openMultiPageEditor();
+            } else if (data instanceof FileNode fileNode) {
+                if (fileNode.directory()) {
+                    selection[0].setExpanded(!selection[0].getExpanded());
+                } else {
+                    openFile(fileNode);
+                }
+            }
+        });
+    }
+
+    /**
+     * Opens (or activates) the single shared DCode harness editor. The editor input
+     * is stable, so this converges on the editor auto-opened at startup — never a
+     * duplicate instance.
+     */
+    private void openMultiPageEditor() {
+        try {
+            PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage()
+                    .openEditor(new eu.kalafatic.dcode.ui.editors
+                                    .DCodeMultiPageEditorInput(),
+                            eu.kalafatic.dcode.ui.editors.DCodeMultiPageEditor
+                                    .EDITOR_ID);
+        } catch (Exception e) {
+            Ui.log("error", "cannot open the harness editor: " + e.getMessage());
+        }
     }
 
     private void openNewWorkspaceDialog() {

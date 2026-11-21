@@ -9,6 +9,8 @@ import eu.kalafatic.dcode.core.lifecycle.LifecycleStage;
 import eu.kalafatic.dcode.core.log.DCodeLog;
 import eu.kalafatic.dcode.core.port.DCodePorts;
 import eu.kalafatic.dcode.core.port.PortAllocator;
+import eu.kalafatic.dcode.core.server.WebServerControl;
+import eu.kalafatic.dcode.core.server.WebServerState;
 import eu.kalafatic.dcode.core.service.DynamicServiceLookup;
 import eu.kalafatic.dcode.core.service.ReviewService;
 import eu.kalafatic.dcode.core.service.SessionService;
@@ -20,12 +22,24 @@ import eu.kalafatic.dcode.server.DCodeApi;
 import eu.kalafatic.dcode.server.DCodeHttpServer;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceRegistration;
 
 import java.util.function.Supplier;
 
 /**
  * Starts the NanoHTTPD API server at the SERVER lifecycle stage. Startup is retried
  * through a service-availability gate: bundle start order is irrelevant.
+ *
+ * <p>Startup follows the shared application configuration:
+ * <ul>
+ *   <li>{@code webServer.enabled=false} — the server is never started (state DISABLED).</li>
+ *   <li>{@code webServer.autoStart=false} — the server is not started automatically;
+ *       it can be started later via the {@link WebServerControl} service
+ *       (RCP Web Interface menu or headless CLI).</li>
+ * </ul>
+ * Defaults keep the historical behavior: the server auto-starts in both headless
+ * and RCP modes. The single {@link WebServerControl} service registered here is
+ * the only start/stop authority; nothing else touches the HTTP server instance.
  */
 public final class ServerActivator implements BundleActivator {
 
@@ -33,6 +47,12 @@ public final class ServerActivator implements BundleActivator {
     private DynamicServiceLookup services;
     private ServiceAvailabilityGate gate;
     private BundleContext context;
+    private ConfigurationService configuration;
+    private DCodeApi api;
+    private volatile int boundPort = -1;
+    private volatile String boundAddress = "127.0.0.1";
+    private volatile WebServerState state = WebServerState.STOPPED;
+    private ServiceRegistration<WebServerControl> controlRegistration;
 
     @Override
     public void start(BundleContext context) {
@@ -49,7 +69,7 @@ public final class ServerActivator implements BundleActivator {
         EventBus eventBus = context.getService(context.getServiceReference(EventBus.class));
         DCodeLifecycle lifecycle = context.getService(
                 context.getServiceReference(DCodeLifecycle.class));
-        ConfigurationService configuration = context.getService(
+        configuration = context.getService(
                 context.getServiceReference(ConfigurationService.class));
         ProviderRegistry providers = context.getService(
                 context.getServiceReference(ProviderRegistry.class));
@@ -65,7 +85,7 @@ public final class ServerActivator implements BundleActivator {
         Supplier<WorkspaceService> workspaceSupplier = () -> services.get(WorkspaceService.class);
         Supplier<ReviewService> reviewSupplier = () -> services.get(ReviewService.class);
 
-        DCodeApi api = new DCodeApi(sessionSupplier, workspaceSupplier, reviewSupplier,
+        api = new DCodeApi(sessionSupplier, workspaceSupplier, reviewSupplier,
                 providers, runtimes, tools, executor, lifecycle, configuration, eventBus,
                 () -> services.get(eu.kalafatic.dcode.harness.tool.ToolEngine.class),
                 () -> services.get(eu.kalafatic.dcode.repositories.service.RepositoryOperations.class),
@@ -74,49 +94,156 @@ public final class ServerActivator implements BundleActivator {
                 () -> services.get(eu.kalafatic.dcode.config.agent.AgentRegistry.class),
                 () -> services.get(eu.kalafatic.dcode.config.profile.ProfileRegistry.class));
 
-        lifecycle.registerAction(LifecycleStage.SERVER, "http-server",
-                new DCodeLifecycle.LifecycleAction() {
+        boolean enabled = configuration.getConfiguration().webServerEnabled();
+        boolean autoStart = configuration.getConfiguration().webServerAutoStart();
+        if (!enabled) {
+            state = WebServerState.DISABLED;
+            DCodeLog.info("server",
+                    "DCode web server disabled (webServer.enabled=false)");
+        } else if (!autoStart) {
+            state = WebServerState.STOPPED;
+            DCodeLog.info("server",
+                    "DCode web server auto-start disabled (webServer.autoStart=false); "
+                            + "start it via the Web Interface menu or CLI");
+        } else {
+            lifecycle.registerAction(LifecycleStage.SERVER, "http-server",
+                    new DCodeLifecycle.LifecycleAction() {
+                        @Override
+                        public void start() throws Exception {
+                            startHttpServer();
+                        }
+
+                        @Override
+                        public void stop() {
+                            stopHttpServer();
+                        }
+                    });
+        }
+
+        controlRegistration = context.registerService(WebServerControl.class,
+                new WebServerControl() {
                     @Override
-                    public void start() throws Exception {
-                        int configuredPort = configuration.getConfiguration().httpPort();
-                        int port = configuredPort > 0 ? configuredPort
-                                : PortAllocator.allocate(DCodePorts.HTTP,
-                                DCodePorts.HTTP_FALLBACK_RANGE);
-                        String bindAddress = configuration.getConfiguration().bindAddress();
-                        server = new DCodeHttpServer(bindAddress, port, api,
-                                new eu.kalafatic.dcode.server.StaticContent.BundleEntry(
-                                        context.getBundle()));
-                        server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-                        // published for ops tooling and runtime-verification tests
-                        System.setProperty("dcode.server.port", String.valueOf(port));
-                        api.setHttpPortActual(port, bindAddress);
-                        DCodeLog.info("server", "DCode HTTP API listening on "
-                                + bindAddress + ":" + port + " ("
-                                + (configuredPort > 0 ? "configured" : "allocated") + ")");
+                    public WebServerState state() {
+                        return state;
+                    }
+
+                    @Override
+                    public boolean isRunning() {
+                        return state == WebServerState.RUNNING && server != null;
+                    }
+
+                    @Override
+                    public void start() {
+                        startHttpServer();
                     }
 
                     @Override
                     public void stop() {
-                        if (server != null) {
-                            server.stop();
-                            server = null;
-                            DCodeLog.info("server", "DCode HTTP API stopped");
-                        }
+                        stopHttpServer();
                     }
-                });
+
+                    @Override
+                    public void restart() {
+                        stopHttpServer();
+                        startHttpServer();
+                    }
+
+                    @Override
+                    public int port() {
+                        return boundPort;
+                    }
+
+                    @Override
+                    public String url() {
+                        return isRunning() ? "http://" + boundAddress + ":" + boundPort + "/"
+                                : null;
+                    }
+                }, null);
+
         try {
             lifecycle.startThrough(LifecycleStage.SERVER);
+            // Re-activation recovery: when this bundle is stopped and started again
+            // (update/restart scenarios), the shared lifecycle has already passed the
+            // SERVER stage — startThrough() is a no-op for started stages, so the
+            // newly registered action never fires. Start the server directly to
+            // restore the configured state.
+            if (enabled && autoStart && lifecycle.isStarted(LifecycleStage.SERVER)
+                    && server == null) {
+                startHttpServer();
+            }
         } catch (Exception e) {
             DCodeLog.error("server", "Failed to advance lifecycle to SERVER", e);
         }
     }
 
+    private synchronized void startHttpServer() {
+        if (!configuration.getConfiguration().webServerEnabled()) {
+            throw new IllegalStateException(
+                    "Web server disabled (webServer.enabled=false) in dcode-config.json");
+        }
+        if (server != null) {
+            return;
+        }
+        state = WebServerState.STARTING;
+        try {
+            int configuredPort = configuration.getConfiguration().httpPort();
+            int port = configuredPort > 0 ? configuredPort
+                    : PortAllocator.allocate(DCodePorts.HTTP,
+                            DCodePorts.HTTP_FALLBACK_RANGE);
+            String bindAddress = configuration.getConfiguration().bindAddress();
+            server = new DCodeHttpServer(bindAddress, port, api,
+                    new eu.kalafatic.dcode.server.StaticContent.BundleEntry(
+                            context.getBundle()));
+            server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            boundPort = port;
+            boundAddress = bindAddress;
+            state = WebServerState.RUNNING;
+            // published for ops tooling and runtime-verification tests
+            System.setProperty("dcode.server.port", String.valueOf(port));
+            api.setHttpPortActual(port, bindAddress);
+            DCodeLog.info("server", "DCode HTTP API listening on "
+                    + bindAddress + ":" + port + " ("
+                    + (configuredPort > 0 ? "configured" : "allocated") + ")");
+        } catch (Exception e) {
+            server = null;
+            state = WebServerState.FAILED;
+            DCodeLog.error("server", "Failed to start DCode HTTP API", e);
+            throw e instanceof RuntimeException re ? re
+                    : new IllegalStateException("Failed to start DCode HTTP API: "
+                            + e.getMessage(), e);
+        }
+    }
+
+    private synchronized void stopHttpServer() {
+        if (server == null) {
+            state = configuration.getConfiguration().webServerEnabled()
+                    ? WebServerState.STOPPED : WebServerState.DISABLED;
+            return;
+        }
+        state = WebServerState.STOPPING;
+        server.stop();
+        server = null;
+        boundPort = -1;
+        System.clearProperty("dcode.server.port");
+        state = configuration.getConfiguration().webServerEnabled()
+                ? WebServerState.STOPPED : WebServerState.DISABLED;
+        DCodeLog.info("server", "DCode HTTP API stopped");
+    }
+
     @Override
     public void stop(BundleContext context) {
+        if (controlRegistration != null) {
+            controlRegistration.unregister();
+            controlRegistration = null;
+        }
         if (server != null) {
             server.stop();
             server = null;
         }
+        // The published port must never outlive the server: consumers (the UI web
+        // resolution, ops tooling) must not see a stale dcode.server.port after the
+        // server bundle stops.
+        System.clearProperty("dcode.server.port");
         if (services != null) {
             services.close();
         }

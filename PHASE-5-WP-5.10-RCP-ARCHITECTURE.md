@@ -30,7 +30,7 @@ core.resources, core.filebuffers, jface.text, org.eclipse.ui via the RCP feature
 | Bundle | Responsibility | SWT |
 |---|---|---|
 | `eu.kalafatic.dcode.client` (new) | HTTP API client (`DCodeApiClient`) + SSE client (`DCodeSseClient`) with typed domain mapping onto the core model; JDK HttpClient + Jackson. Shared by any JVM client. | no |
-| `eu.kalafatic.dcode.ui` (new) | Eclipse RCP workbench: `IApplication`, `WorkbenchAdvisor`, perspective, views (workspace/sessions/chat/activity/console/tools/changes/providers/connection), source editor (JFace text infrastructure + Java syntax highlighting), diff editor, commands, menus, status line. | yes |
+| `eu.kalafatic.dcode.ui` (new) | Eclipse RCP workbench: `IApplication`, `WorkbenchAdvisor`, perspective, views (workspace/sessions/chat/activity/console/tools/changes/providers/connection), source editor (JFace text infrastructure + Java syntax highlighting), diff editor, harness `MultiPageEditor` (HTML/SWT-Browser Inference + Settings pages), commands, menus, status line. | yes |
 | `eu.kalafatic.dcode.feature` (new) | Feature aggregating all DCode bundles (+ client, ui) | — |
 | `eu.kalafatic.dcode.product` (new) | `eclipse-repository` with the RCP product (and a headless product) | — |
 
@@ -95,6 +95,17 @@ off the UI thread; coalesced UI updates avoid refresh storms.
   + a `RuleBasedScanner` Java highlighter; content from the files endpoint; saving via
   the audited `write_file` tool; navigation to file:line from diagnostics/references.
 - **Diff editor**: read-only diff presentation for the changes endpoint data.
+- **Harness MultiPageEditor** (`eu.kalafatic.dcode.ui.editors.multi`, the main working
+  area, EVO-aligned): opened automatically at startup (`WorkbenchAdvisor.postStartup`;
+  a stable input makes restoration/re-open converge on one part — no duplicates).
+  Two pages: **Web** (initial) — an SWT Browser hosting the actual DCode web
+  application over its HTTP endpoint (same frontend, harness, inference, sessions,
+  streaming and tool calling as an external browser; bounded non-blocking readiness
+  wait with a Reload action) — and **Settings** — the desktop-specific configuration
+  page (backend defaults/enablement via the existing API bridge). No second frontend
+  exists; the server bundle is activated early (`ServerRuntimeBoot`, background,
+  layering-safe) so the WebServerControl service and the web application are ready
+  when the workbench opens.
 - Full JDT `CompilationUnitEditor` embedding (content assist, quick fixes) is a
   documented deferred enhancement: in local mode the shared `JavaWorkspaceManager`
   already provides `IJavaProject`s in the same runtime, so the integration point is

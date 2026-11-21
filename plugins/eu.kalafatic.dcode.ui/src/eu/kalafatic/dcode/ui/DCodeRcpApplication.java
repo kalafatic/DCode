@@ -21,6 +21,11 @@ public final class DCodeRcpApplication implements IApplication {
     @Override
     public Object start(IApplicationContext context) {
         Display display = PlatformUI.createDisplay();
+        // Start the embedded server runtime early (background): its WebServerControl
+        // service drives the Web Interface menu and its HTTP server serves the web
+        // application shown in the main editor's SWT Browser. The workbench never
+        // blocks on this activation or on the HTTP bind.
+        ServerRuntimeBoot.ensureServerBundleActive();
         try {
             int code = PlatformUI.createAndRunWorkbench(display,
                     new DCodeWorkbenchAdvisor());

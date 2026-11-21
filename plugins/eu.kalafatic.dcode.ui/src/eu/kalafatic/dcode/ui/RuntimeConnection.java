@@ -90,6 +90,22 @@ public final class RuntimeConnection {
                 Ui.log("error", "Connection probe failed: " + throwable.getMessage());
                 return;
             }
+            if (result.identity() != null && !result.identity().isDCode()
+                    && localServerRunning()) {
+                // The configured endpoint answers but is not a DCode server (e.g. an
+                // ENR/Ollama address persisted by an earlier session). The bundled
+                // product always has its own local server: switch to it instead of
+                // leaving the whole UI pointed at a foreign service.
+                Ui.log("warning", "Endpoint " + client.baseUrl()
+                        + " is not a DCode server ("
+                        + result.identity().describe()
+                        + "); switching to the local embedded DCode server.");
+                Preferences preferences = Preferences.userNodeForPackage(
+                        RuntimeConnection.class);
+                preferences.remove(PREF_ENDPOINT);
+                initialize();
+                return;
+            }
             setState(result.state(), result.identity(), result.diagnostic());
             switch (result.state()) {
                 case READY -> {
@@ -109,6 +125,16 @@ public final class RuntimeConnection {
                 default -> Ui.log("network", result.describe());
             }
         }));
+    }
+
+    /** True when the embedded local DCode server is actually running. */
+    private static boolean localServerRunning() {
+        String port = System.getProperty("dcode.server.port");
+        if (port != null && !port.isBlank()) {
+            return true;
+        }
+        var control = WebServerControlAccess.get();
+        return control != null && control.isRunning();
     }
 
     /** User-triggered connection recheck (manual retry; no automatic retry loop). */
@@ -157,6 +183,55 @@ public final class RuntimeConnection {
     public boolean hasLocalServer() {
         String port = System.getProperty("dcode.server.port");
         return port != null && !port.isBlank();
+    }
+
+    /**
+     * Base URL of the DCode web surface (web UI + help). Resolved from verified DCode
+     * backends only:
+     * <ol>
+     *   <li>the connected backend when it is a verified DCode server (local or
+     *       remote) — the web UI lives on the same HTTP server as the API;</li>
+     *   <li>the embedded local server control when it is running (authoritative
+     *       state — a stopped control means no local URL, even if a stale port
+     *       property lingered);</li>
+     *   <li>the published {@code dcode.server.port} property (only consulted when
+     *       the control service is absent entirely);</li>
+     *   <li>otherwise {@code null} — callers must show guidance instead of opening
+     *       an unverified endpoint (e.g. an ENR/Ollama address stored as endpoint).</li>
+     * </ol>
+     */
+    public String webBaseUrl() {
+        if (state() == ConnectionState.READY && identity() != null
+                && identity().isDCode()) {
+            String endpoint = endpoint();
+            if (endpoint != null && !endpoint.isBlank()) {
+                return endpoint;
+            }
+        }
+        var control = WebServerControlAccess.get();
+        if (control != null) {
+            if (!control.isRunning()) {
+                return null;
+            }
+            String url = control.url();
+            if (url != null && !url.isBlank()) {
+                return url;
+            }
+        }
+        String port = System.getProperty("dcode.server.port");
+        if (port != null && !port.isBlank()) {
+            return "http://127.0.0.1:" + port;
+        }
+        return null;
+    }
+
+    /**
+     * True when the embedded local web server control exists (the server bundle is
+     * active in this runtime) — the Web Interface menu shows the start/stop/restart
+     * actions and "Open Web Interface" can start the server on demand.
+     */
+    public boolean hasLocalServerControl() {
+        return WebServerControlAccess.get() != null;
     }
 
     public DCodeApiClient api() {

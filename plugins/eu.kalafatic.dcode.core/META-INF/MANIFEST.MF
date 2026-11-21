@@ -16,5 +16,6 @@ Export-Package: eu.kalafatic.dcode.core,
  eu.kalafatic.dcode.core.log,
  eu.kalafatic.dcode.core.model,
  eu.kalafatic.dcode.core.port,
+ eu.kalafatic.dcode.core.server,
  eu.kalafatic.dcode.core.service
 Automatic-Module-Name: eu.kalafatic.dcode.core

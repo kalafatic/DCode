@@ -33,6 +33,7 @@ window.DCodeApp = (function () {
         'DEBUG', 'NETWORK', 'HARNESS', 'RUNTIME', 'TOOL', 'TASK', 'INFERENCE', 'EVENT'];
 
     function init() {
+        applyTheme();
         wireNavigation();
         wireBottomTabs();
         wireConsoleControls();
@@ -149,6 +150,25 @@ window.DCodeApp = (function () {
         }
         const connBtn = document.getElementById('btn-conn');
         connBtn.onclick = () => openModal('connection-details');
+    }
+
+    // Theme toggle: UPM design standard light/dark pair. Default dark
+    // (matching the UPM runtime default); persisted locally per browser.
+    function applyTheme() {
+        const saved = (function () {
+            try { return localStorage.getItem('dcode.theme'); } catch (e) { return null; }
+        })();
+        const theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+        document.documentElement.dataset.theme = theme;
+        const btn = document.getElementById('btn-theme');
+        if (btn) {
+            btn.onclick = () => {
+                const next = document.documentElement.dataset.theme === 'dark'
+                    ? 'light' : 'dark';
+                document.documentElement.dataset.theme = next;
+                try { localStorage.setItem('dcode.theme', next); } catch (e) { /* ignore */ }
+            };
+        }
     }
 
     function setConnectionStatus(status, detail) {

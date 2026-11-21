@@ -1,10 +1,13 @@
 package eu.kalafatic.dcode.ui;
 
 import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.ContributionItem;
 import org.eclipse.jface.action.IMenuManager;
 import org.eclipse.jface.action.MenuManager;
 import org.eclipse.jface.action.Separator;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.actions.ActionFactory.IWorkbenchAction;
@@ -240,6 +243,15 @@ public final class DCodeActionBarAdvisor extends ActionBarAdvisor {
         });
         menuBar.add(toolsMenu);
 
+        // Web Interface lifecycle controls: the contribution item rebuilds on
+        // every menu open, so enablement and status reflect the real server
+        // state (DISABLED / STOPPED / STARTING / RUNNING / STOPPING / FAILED).
+        // All controls route through the single WebServerControl service from
+        // the server bundle — no second server lifecycle implementation.
+        MenuManager webInterfaceMenu = new MenuManager("&Web Interface", "webInterface");
+        webInterfaceMenu.add(new WebInterfaceContributionItem());
+        menuBar.add(webInterfaceMenu);
+
         MenuManager windowMenu = new MenuManager("&Window", "window");
         windowMenu.add(new Action("Open Perspective: DCode") {
             @Override
@@ -321,6 +333,12 @@ public final class DCodeActionBarAdvisor extends ActionBarAdvisor {
             @Override
             public void run() {
                 String base = HelpLauncher.baseUrl();
+                if (base == null) {
+                    Ui.log("error", "No DCode web server known — diagnostics are "
+                            + "served by the verified DCode backend only. Fix the "
+                            + "connection (Window ▸ Connection) first.");
+                    return;
+                }
                 DesktopActions.launchBrowser(base + "/api/v1/status");
             }
         };
@@ -386,5 +404,166 @@ public final class DCodeActionBarAdvisor extends ActionBarAdvisor {
                 json -> Ui.log("tool", toolName + " finished: "
                         + json.path("toolCall").path("state").asText()),
                 "execute " + toolName);
+    }
+
+    /**
+     * Dynamic Web Interface menu content. Rebuilt on every menu open so the
+     * items always reflect the actual server state.
+     */
+    private final class WebInterfaceContributionItem extends ContributionItem {
+
+        WebInterfaceContributionItem() {
+            super("eu.kalafatic.dcode.ui.webInterfaceControls");
+        }
+
+        @Override
+        public boolean isDynamic() {
+            return true;
+        }
+
+        @Override
+        public void fill(Menu parent, int index) {
+            var control = WebServerControlAccess.get();
+            boolean running = control != null && control.isRunning();
+            boolean localControl = control != null;
+            // "Open Web Interface" is actionable whenever the local product server
+            // control exists (it starts the server on demand) or a verified DCode
+            // backend resolves — the same action set as DStudio's Web Interface menu.
+            boolean webOpenable = localControl
+                    || RuntimeConnection.instance().webBaseUrl() != null;
+
+            MenuItem openItem = new MenuItem(parent, SWT.PUSH, index++);
+            openItem.setText("Open Web Interface");
+            openItem.setEnabled(webOpenable);
+            if (!webOpenable) {
+                openItem.setToolTipText("No DCode web server known — fix the "
+                        + "connection (Window ▸ Connection) first");
+            }
+            openItem.addSelectionListener(new org.eclipse.swt.events.SelectionAdapter() {
+                @Override
+                public void widgetSelected(org.eclipse.swt.events.SelectionEvent e) {
+                    DesktopActions.openWebInterface();
+                }
+            });
+
+            MenuItem openUrlItem = new MenuItem(parent, SWT.PUSH, index++);
+            openUrlItem.setText("Open Configured Web URL");
+            openUrlItem.setEnabled(running);
+            if (!running) {
+                openUrlItem.setToolTipText(localControl
+                        ? "The local web server is not running"
+                        : "No local web server in this runtime (remote mode)");
+            }
+            openUrlItem.addSelectionListener(
+                    new org.eclipse.swt.events.SelectionAdapter() {
+                        @Override
+                        public void widgetSelected(
+                                org.eclipse.swt.events.SelectionEvent e) {
+                            String url = control.url();
+                            if (url != null) {
+                                DesktopActions.launchBrowser(url);
+                            }
+                        }
+                    });
+
+            new MenuItem(parent, SWT.SEPARATOR, index++);
+
+            var state = localControl ? control.state() : null;
+            boolean startable = localControl
+                    && (state == eu.kalafatic.dcode.core.server.WebServerState.STOPPED
+                            || state == eu.kalafatic.dcode.core.server.WebServerState.FAILED
+                            || state == eu.kalafatic.dcode.core.server.WebServerState.DISABLED);
+            boolean stoppable = localControl
+                    && (state == eu.kalafatic.dcode.core.server.WebServerState.RUNNING
+                            || state == eu.kalafatic.dcode.core.server.WebServerState.STARTING);
+
+            MenuItem startItem = new MenuItem(parent, SWT.PUSH, index++);
+            startItem.setText("Start Web Server");
+            startItem.setEnabled(startable);
+            if (!localControl) {
+                startItem.setToolTipText("No local web server control in this "
+                        + "runtime (remote mode)");
+            }
+            startItem.addSelectionListener(
+                    new org.eclipse.swt.events.SelectionAdapter() {
+                        @Override
+                        public void widgetSelected(
+                                org.eclipse.swt.events.SelectionEvent e) {
+                            runServerOperation("start", control::start);
+                        }
+                    });
+
+            MenuItem stopItem = new MenuItem(parent, SWT.PUSH, index++);
+            stopItem.setText("Stop Web Server");
+            stopItem.setEnabled(stoppable);
+            if (!localControl) {
+                stopItem.setToolTipText("No local web server control in this "
+                        + "runtime (remote mode)");
+            }
+            stopItem.addSelectionListener(
+                    new org.eclipse.swt.events.SelectionAdapter() {
+                        @Override
+                        public void widgetSelected(
+                                org.eclipse.swt.events.SelectionEvent e) {
+                            runServerOperation("stop", control::stop);
+                        }
+                    });
+
+            MenuItem restartItem = new MenuItem(parent, SWT.PUSH, index++);
+            restartItem.setText("Restart Web Server");
+            restartItem.setEnabled(stoppable);
+            if (!localControl) {
+                restartItem.setToolTipText("No local web server control in this "
+                        + "runtime (remote mode)");
+            }
+            restartItem.addSelectionListener(
+                    new org.eclipse.swt.events.SelectionAdapter() {
+                        @Override
+                        public void widgetSelected(
+                                org.eclipse.swt.events.SelectionEvent e) {
+                            runServerOperation("restart", control::restart);
+                        }
+                    });
+
+            new MenuItem(parent, SWT.SEPARATOR, index++);
+
+            MenuItem statusItem = new MenuItem(parent, SWT.PUSH, index++);
+            statusItem.setText("Check Status");
+            statusItem.addSelectionListener(new org.eclipse.swt.events.SelectionAdapter() {
+                @Override
+                public void widgetSelected(org.eclipse.swt.events.SelectionEvent e) {
+                    if (control == null) {
+                        String endpoint = RuntimeConnection.instance().endpoint();
+                        org.eclipse.jface.dialogs.MessageDialog.openInformation(
+                                getActionBarConfigurer().getWindowConfigurer()
+                                        .getWindow().getShell(),
+                                "Web Server Status",
+                                "No local server control (connected endpoint: "
+                                        + (endpoint == null ? "none" : endpoint) + ").");
+                        return;
+                    }
+                    org.eclipse.jface.dialogs.MessageDialog.openInformation(
+                            getActionBarConfigurer().getWindowConfigurer()
+                                    .getWindow().getShell(),
+                            "Web Server Status",
+                            "State: " + control.state()
+                                    + (control.isRunning()
+                                            ? "\nURL: " + control.url()
+                                            : "")
+                                    + "\nPort: " + control.port());
+                }
+            });
+        }
+
+        private void runServerOperation(String operation, Runnable body) {
+            try {
+                body.run();
+            } catch (RuntimeException e) {
+                org.eclipse.jface.dialogs.MessageDialog.openError(
+                        getActionBarConfigurer().getWindowConfigurer().getWindow()
+                                .getShell(),
+                        "Web Server " + operation + " failed", e.getMessage());
+            }
+        }
     }
 }

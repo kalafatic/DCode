@@ -30,10 +30,28 @@ public final class DCodeWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
     public void preWindowOpen() {
         DCodeWorkbenchProbe.windowAdvisorCalled = true;
         IWorkbenchWindowConfigurer configurer = getWindowConfigurer();
-        configurer.setInitialSize(new Point(1440, 900));
+        configurer.setInitialSize(new Point(800, 600));
+        configurer.setShowCoolBar(true);
         configurer.setShowStatusLine(true);
+        configurer.setShowPerspectiveBar(true);
+        configurer.setShowMenuBar(true);
         configurer.setShowProgressIndicator(true);
-        configurer.setTitle("DCode — Darwin Code");
+        configurer.setTitle(productName());
+        org.eclipse.ui.PlatformUI.getPreferenceStore().setValue(
+                org.eclipse.ui.IWorkbenchPreferenceConstants.DOCK_PERSPECTIVE_BAR,
+                "TOP_LEFT");
+    }
+
+    private static String productName() {
+        try {
+            var product = org.eclipse.core.runtime.Platform.getProduct();
+            if (product != null && product.getName() != null) {
+                return product.getName();
+            }
+        } catch (RuntimeException ignored) {
+            // product not ready yet
+        }
+        return "DCode";
     }
 
     @Override
@@ -91,6 +109,42 @@ public final class DCodeWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
                     }
                 });
         installContextHelpKey();
+        installPerspectiveResetRecovery();
+    }
+
+    /**
+     * "Reset Perspective" restores the default layout; it may also drop the open
+     * editor. Recover the main harness editor afterwards (the stable input makes
+     * re-open idempotent) so the workbench never ends up without its working area.
+     */
+    private void installPerspectiveResetRecovery() {
+        org.eclipse.ui.IWorkbenchWindow window =
+                getWindowConfigurer().getWindow();
+        if (window == null) {
+            return;
+        }
+        window.addPerspectiveListener(new org.eclipse.ui.IPerspectiveListener() {
+            @Override
+            public void perspectiveActivated(
+                    org.eclipse.ui.IWorkbenchPage page,
+                    org.eclipse.ui.IPerspectiveDescriptor perspective) {
+                // nothing to do on activation
+            }
+
+            @Override
+            public void perspectiveChanged(
+                    org.eclipse.ui.IWorkbenchPage page,
+                    org.eclipse.ui.IPerspectiveDescriptor perspective,
+                    String changeId) {
+                if (!org.eclipse.ui.IWorkbenchPage.CHANGE_RESET.equals(changeId)) {
+                    return;
+                }
+                Ui.log("info", "Perspective reset — restoring the inference "
+                        + "editor…");
+                org.eclipse.swt.widgets.Display.getDefault().asyncExec(
+                        () -> DCodeWorkbenchAdvisor.openInferenceEditor(page));
+            }
+        });
     }
 
     /**

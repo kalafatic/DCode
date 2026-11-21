@@ -96,7 +96,10 @@ public final class DurableConfigurationService implements ConfigurationService {
                         root.path("providerEndpoint").asText(initial.providerEndpoint()),
                         root.path("harnessType").asText(initial.harnessType()),
                         root.path("agentRole").asText(initial.agentRole()),
-                        root.path("defaultModel").asText(initial.defaultModel()));
+                        root.path("defaultModel").asText(initial.defaultModel()),
+                        root.path("webServerEnabled").asBoolean(initial.webServerEnabled()),
+                        root.path("webServerAutoStart").asBoolean(
+                                initial.webServerAutoStart()));
                 return loaded;
             }
             persistConfiguration(initial);
@@ -125,6 +128,8 @@ public final class DurableConfigurationService implements ConfigurationService {
             map.put("harnessType", configuration.harnessType());
             map.put("agentRole", configuration.agentRole());
             map.put("defaultModel", configuration.defaultModel());
+            map.put("webServerEnabled", configuration.webServerEnabled());
+            map.put("webServerAutoStart", configuration.webServerAutoStart());
             Files.writeString(configFile, mapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(map));
         } catch (Exception e) {

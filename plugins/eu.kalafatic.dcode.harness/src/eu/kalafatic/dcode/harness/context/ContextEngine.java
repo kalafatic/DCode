@@ -46,7 +46,12 @@ public final class ContextEngine {
         for (ToolDefinition tool : tools) {
             prompt.append("- ").append(tool.name()).append(": ").append(tool.description())
                     .append(" [").append(tool.readOnly() ? "read-only" : "mutating")
-                    .append(", scope=").append(tool.scope()).append("]\n");
+                    .append(", scope=").append(tool.scope()).append(']');
+            java.util.List<String> parameterNames = parameterNames(tool);
+            if (!parameterNames.isEmpty()) {
+                prompt.append(" args: ").append(String.join(", ", parameterNames));
+            }
+            prompt.append('\n');
         }
         prompt.append('\n');
 
@@ -66,6 +71,27 @@ public final class ContextEngine {
         prompt.append("- Do not commit or push unless explicitly instructed.\n");
         prompt.append("- Do not invent facts about files you did not read.\n");
         return prompt.toString();
+    }
+
+    /**
+     * Extracts the argument names from a tool's JSON-schema parameters block. Agents see
+     * the exact argument names (e.g. {@code oldText}/{@code newText}) and stop guessing
+     * them from the description.
+     */
+    private static java.util.List<String> parameterNames(ToolDefinition tool) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        try {
+            com.fasterxml.jackson.databind.JsonNode schema =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                            tool.parametersJson());
+            com.fasterxml.jackson.databind.JsonNode properties = schema.path("properties");
+            if (properties.isObject()) {
+                properties.fieldNames().forEachRemaining(names::add);
+            }
+        } catch (Exception ignored) {
+            // Invalid schema: expose nothing rather than misleading the agent.
+        }
+        return names;
     }
 
     /** Returns the bounded conversation history as a prompt string. */

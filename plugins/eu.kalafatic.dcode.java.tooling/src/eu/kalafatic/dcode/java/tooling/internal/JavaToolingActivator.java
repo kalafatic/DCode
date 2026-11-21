@@ -38,8 +38,33 @@ public final class JavaToolingActivator implements BundleActivator {
     public void start(BundleContext context) {
         this.context = context;
         gate = new ServiceAvailabilityGate(context, new Class<?>[]{
-                ToolRegistry.class, DCodeLifecycle.class}, this::wire);
+                ToolRegistry.class, DCodeLifecycle.class}, this::eclipseWorkspaceReady, this::wire);
         gate.runIfAvailable();
+    }
+
+    /**
+     * Additional startup condition for the Eclipse platform: JDT core can only activate
+     * after the Eclipse resources workspace has been opened (it crashes otherwise). In
+     * headless runtimes without the resources bundle the condition is satisfied trivially
+     * and {@link #wire()} degrades gracefully as before.
+     */
+    private boolean eclipseWorkspaceReady() {
+        boolean resourcesBundlePresent = false;
+        for (org.osgi.framework.Bundle bundle : context.getBundles()) {
+            if ("org.eclipse.core.resources".equals(bundle.getSymbolicName())
+                    && bundle.getState() != org.osgi.framework.Bundle.UNINSTALLED) {
+                resourcesBundlePresent = true;
+                break;
+            }
+        }
+        if (!resourcesBundlePresent) {
+            return true;
+        }
+        try {
+            return context.getServiceReference("org.eclipse.core.resources.IWorkspace") != null;
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     private void wire() {

@@ -15,6 +15,7 @@
 
    <extension point="org.eclipse.ui.perspectives">
       <perspective class="eu.kalafatic.dcode.ui.DCodePerspectiveFactory"
+                   fixed="true"
                    id="eu.kalafatic.dcode.ui.perspective"
                    name="DCode"/>
    </extension>
@@ -119,5 +120,9 @@
               default="false"
               id="eu.kalafatic.dcode.ui.editors.diff"
               name="DCode Diff Editor"/>
+      <editor class="eu.kalafatic.dcode.ui.editors.DCodeMultiPageEditor"
+              default="false"
+              id="eu.kalafatic.dcode.ui.editors.multi"
+              name="DCode Inference"/>
    </extension>
 </plugin>

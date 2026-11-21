@@ -97,4 +97,38 @@ class HeadlessRuntimeWebTest {
         assertEquals(200, apiClient.statusCode());
         assertTrue(apiClient.body().contains("window.DCodeApi"));
     }
+
+    @Test
+    void webServerControlServiceDrivesTheHttpServer() throws Exception {
+        BundleContext context = FrameworkUtil.getBundle(HeadlessRuntimeWebTest.class)
+                .getBundleContext();
+        var reference = context.getServiceReference(
+                eu.kalafatic.dcode.core.server.WebServerControl.class);
+        assertNotNull(reference, "WebServerControl service must be registered");
+        eu.kalafatic.dcode.core.server.WebServerControl control =
+                context.getService(reference);
+        assertNotNull(control);
+        try {
+            String port = System.getProperty("dcode.server.port");
+            assertEquals(eu.kalafatic.dcode.core.server.WebServerState.RUNNING,
+                    control.state(), "server auto-starts by default");
+            assertEquals(control.port(), Integer.parseInt(port));
+            assertEquals("http://127.0.0.1:" + port + "/", control.url());
+
+            control.stop();
+            assertEquals(eu.kalafatic.dcode.core.server.WebServerState.STOPPED,
+                    control.state());
+            assertEquals(-1, control.port());
+
+            control.start();
+            assertEquals(eu.kalafatic.dcode.core.server.WebServerState.RUNNING,
+                    control.state());
+            assertTrue(control.url().startsWith("http://"), control.url());
+        } finally {
+            // Leave the runtime in its default state for the remaining tests.
+            if (control.state() != eu.kalafatic.dcode.core.server.WebServerState.RUNNING) {
+                control.start();
+            }
+        }
+    }
 }

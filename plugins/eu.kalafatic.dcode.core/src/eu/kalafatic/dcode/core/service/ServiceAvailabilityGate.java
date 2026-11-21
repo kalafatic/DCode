@@ -6,6 +6,7 @@ import org.osgi.framework.ServiceListener;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * Retry-safe startup gate for manually wired OSGi bundles (family convention: no DS).
@@ -18,26 +19,41 @@ public final class ServiceAvailabilityGate implements AutoCloseable {
 
     private final BundleContext context;
     private final Class<?>[] requiredServices;
+    private final BooleanSupplier additionalReadiness;
     private final Runnable whenAvailable;
     private final AtomicBoolean fired = new AtomicBoolean();
     private final ServiceListener listener = this::onServiceEvent;
 
     public ServiceAvailabilityGate(BundleContext context, Class<?>[] requiredServices,
                                    Runnable whenAvailable) {
+        this(context, requiredServices, () -> true, whenAvailable);
+    }
+
+    /**
+     * Gate variant with an additional readiness condition. The startup work runs only
+     * when all required services are available AND the readiness condition holds; every
+     * subsequent service registration re-evaluates both.
+     */
+    public ServiceAvailabilityGate(BundleContext context, Class<?>[] requiredServices,
+                                   BooleanSupplier additionalReadiness,
+                                   Runnable whenAvailable) {
         this.context = Objects.requireNonNull(context, "context");
         this.requiredServices = Objects.requireNonNull(requiredServices, "requiredServices");
+        this.additionalReadiness = Objects.requireNonNull(additionalReadiness,
+                "additionalReadiness");
         this.whenAvailable = Objects.requireNonNull(whenAvailable, "whenAvailable");
         context.addServiceListener(listener);
     }
 
     /** Runs the startup work when all services are available. Returns true if it ran now. */
     public boolean runIfAvailable() {
-        if (!allAvailable()) {
+        if (!allAvailable() || !additionalReadiness.getAsBoolean()) {
             return false;
         }
-        if (fired.compareAndSet(false, true)) {
-            whenAvailable.run();
+        if (!fired.compareAndSet(false, true)) {
+            return false;
         }
+        whenAvailable.run();
         return true;
     }
 

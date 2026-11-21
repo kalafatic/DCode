@@ -21,6 +21,9 @@ import java.util.Objects;
  * @param harnessType       selected harness type (e.g. "dcode", "opencode", "aider")
  * @param agentRole         default agent role for executions
  * @param defaultModel      default model name or id
+ * @param webServerEnabled  whether the web/API server may run at all
+ * @param webServerAutoStart whether the web/API server starts automatically
+ *                          at startup (headless and RCP modes alike)
  */
 public record CoreConfiguration(
         Path dataDir,
@@ -36,7 +39,9 @@ public record CoreConfiguration(
         String providerEndpoint,
         String harnessType,
         String agentRole,
-        String defaultModel
+        String defaultModel,
+        boolean webServerEnabled,
+        boolean webServerAutoStart
 ) {
     public CoreConfiguration {
         Objects.requireNonNull(dataDir, "dataDir");
@@ -65,6 +70,8 @@ public record CoreConfiguration(
                 "http://127.0.0.1:11434", // providerEndpoint
                 "dcode",            // harnessType
                 "MAIN",             // agentRole
-                "qwen2.5-coder:32b"); // defaultModel
+                "qwen2.5-coder:32b", // defaultModel
+                true,               // webServerEnabled
+                true);              // webServerAutoStart
     }
 }

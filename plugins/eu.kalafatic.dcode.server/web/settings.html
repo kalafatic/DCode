@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DCode Settings</title>
+<style>
+:root {
+  --bg: #12161f; --panel: #1c2230; --panel2: #232b3c; --border: #2e394c;
+  --border2: #3c4a61; --text: #e7ebf3; --muted: #93a0b4; --accent: #5b8feb;
+  --ok: #46c58a; --warn: #e2ad4e; --err: #ef7a6f;
+  --mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font: 12px/1.45 "Segoe UI", "Inter", system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+header { padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex: none; }
+.brand { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.brand .logo { width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; background: linear-gradient(135deg, var(--accent), #8f6cff); color: #0b0e14; }
+header small { color: var(--muted); font-weight: 400; }
+.spacer { flex: 1; }
+#connChip { font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.dot.ok { background: var(--ok); } .dot.err { background: var(--err); }
+main { flex: 1; overflow-y: auto; padding: 12px 16px; }
+#banner { margin-bottom: 10px; padding: 8px 12px; border-radius: 7px; font-size: 12px; display: none; }
+#banner.warn { display: block; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.35); color: var(--warn); }
+#banner.err { display: block; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.4); color: var(--err); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.card h4 { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 9px; font-weight: 600; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed var(--border); font-size: 11.5px; }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--muted); }
+.kv .v { font-family: var(--mono); word-break: break-all; text-align: right; font-size: 11px; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: .6px; padding: 3px 6px; border-bottom: 1px solid var(--border); }
+td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+.badge { display: inline-block; font-size: 9.5px; padding: 1px 7px; border-radius: 8px; border: 1px solid var(--border2); color: var(--muted); text-transform: uppercase; }
+.badge.ok { color: var(--ok); border-color: rgba(74,222,128,.4); }
+.badge.err { color: var(--err); border-color: rgba(248,113,113,.4); }
+button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--border2); border-radius: 5px; padding: 4px 10px; outline: none; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0b0e14; font-weight: 600; }
+button.small { padding: 2px 8px; font-size: 11px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 7px; }
+.row label { color: var(--muted); min-width: 64px; font-size: 11.5px; }
+.row select { flex: 1; min-width: 130px; background: var(--panel2); color: var(--text); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 7px; font: inherit; }
+.row input { background: var(--panel2); border: 1px solid var(--border2); border-radius: 5px; padding: 3px 8px; font-size: 11.5px; color: var(--text); outline: none; }
+.muted { color: var(--muted); font-size: 11.5px; }
+#toast { position: fixed; bottom: 14px; right: 14px; background: var(--panel2); border: 1px solid var(--accent); border-radius: 7px; padding: 7px 12px; font-size: 11.5px; display: none; z-index: 60; }
+.switch { position: relative; width: 30px; height: 16px; background: var(--border2); border-radius: 8px; cursor: pointer; border: none; flex: none; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: all .15s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 16px; background: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">D</span> DCode <small>Settings &amp; persistence</small></div>
+  <div class="spacer"></div>
+  <div id="connChip"><span class="dot" id="dot"></span><span id="connText">connecting…</span></div>
+</header>
+<main>
+  <div id="banner"></div>
+  <div class="grid">
+    <div class="card">
+      <h4>Connection</h4>
+      <div class="kv"><span class="k">State</span><span class="v" id="cState">—</span></div>
+      <div class="kv"><span class="k">Endpoint</span><span class="v" id="cEndpoint">—</span></div>
+      <div class="kv"><span class="k">Backend</span><span class="v" id="cBackend">—</span></div>
+      <div class="kv"><span class="k">Version</span><span class="v" id="cVersion">—</span></div>
+      <div class="row" style="margin-top:8px;margin-bottom:0">
+        <button class="small" id="retryBtn">Retry</button>
+        <button class="small" id="tokenBtn">Set token</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Defaults</h4>
+      <div class="row"><label>Runtime</label><select id="selRuntime"></select><button class="small" id="scanBtn">Scan</button></div>
+      <div class="row"><label>Model</label><select id="selModel"></select><button class="small" id="browseBtn">Browse</button></div>
+      <div class="row"><label>Agent</label><select id="selAgent"></select></div>
+      <div class="row"><label>Profile</label><select id="selProfile"></select></div>
+      <div class="row" style="margin-bottom:0">
+        <button class="primary" id="applyDefaults">Apply defaults</button>
+        <span class="muted">Persisted by the backend.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Persistence</h4>
+      <div class="kv"><span class="k">Owner</span><span class="v">DCode backend</span></div>
+      <div class="kv"><span class="k">Sessions</span><span class="v">server-side</span></div>
+      <div class="kv"><span class="k">Reviews</span><span class="v">server-side</span></div>
+      <div class="kv"><span class="k">UI layout</span><span class="v">Eclipse workspace</span></div>
+      <div class="kv"><span class="k">Credentials</span><span class="v">Eclipse secure storage</span></div>
+      <div class="muted" style="margin-top:6px">Workspaces, sessions, reviews, providers, runtimes, models, agents and profiles are owned and persisted by the DCode backend; this page is the same frontend an external browser sees.</div>
+    </div>
+
+    <div class="card">
+      <h4>Runtimes</h4>
+      <table id="runtimeTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+    </div>
+
+    <div class="card">
+      <h4>Providers</h4>
+      <table id="providerTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+      <div class="row" style="margin-top:8px;margin-bottom:0">
+        <button class="small" id="scanBtn2">Scan local runtimes</button>
+        <span class="muted" id="scanHint">Ollama · ENR · DCode</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Workspaces (projects)</h4>
+      <table id="workspaceTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+      <div class="row" style="margin-top:8px;margin-bottom:0">
+        <input id="wsName" type="text" placeholder="workspace name" style="width:130px"/>
+        <input id="wsPath" type="text" placeholder="root path (optional)" style="width:190px"/>
+        <button class="small" id="wsCreateBtn">Create workspace</button>
+        <button class="small" id="wsRefreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Harnesses</h4>
+      <table id="harnessTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+    </div>
+
+    <div class="card">
+      <h4>Agents</h4>
+      <table id="agentTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+    </div>
+
+    <div class="card">
+      <h4>Conversation profiles</h4>
+      <table id="profileTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+    </div>
+
+    <div class="card">
+      <h4>Ports</h4>
+      <table id="portTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
+    </div>
+  </div>
+</main>
+<div id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = v => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const val = (o, ...keys) => { if (o == null) return ""; for (const k of keys) { if (o[k] !== undefined && o[k] !== null) return o[k]; } return ""; };
+const arrOf = v => Array.isArray(v) ? v : (v && Array.isArray(v.models) ? v.models : (v && Array.isArray(v.data) ? v.data : (v && Array.isArray(v.items) ? v.items : [])));
+const API = "/api/v1";
+const TOKEN_KEY = "dcode.web.token";
+function authHeaders() {
+  let token = "";
+  try { token = sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { /* ignore */ }
+  return token ? { "Authorization": "Bearer " + token } : {};
+}
+
+async function api(path, options) {
+  const opts = Object.assign({}, options || {});
+  opts.headers = Object.assign({ "Content-Type": "application/json" },
+      authHeaders(), opts.headers || {});
+  const response = await fetch(path, opts);
+  const text = await response.text();
+  let body;
+  try { body = text ? JSON.parse(text) : {}; } catch (e) { body = { raw: text }; }
+  if (!response.ok) {
+    throw new Error(body.message || body.error || ("HTTP " + response.status));
+  }
+  return body;
+}
+function statusOf(r) {
+  const s = val(r, "status");
+  if (s && typeof s === "object") {
+    if (s.reachable === false) return "DISCONNECTED";
+    if (s.healthy === false) return "DEGRADED";
+    return "CONNECTED";
+  }
+  return String(s || "");
+}
+
+let S = { runtimes: [], providers: [], harnesses: [], agents: [], profiles: [], ports: [], workspaces: [], models: [] };
+let sel = { runtime: "", model: "", agent: "", profile: "" };
+let toastTimer = null;
+function toast(text) {
+  const el = $("toast"); el.textContent = text; el.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 2600);
+}
+function banner(text, kind) {
+  const el = $("banner");
+  if (!text) { el.className = ""; el.style.display = "none"; return; }
+  el.textContent = text; el.className = kind || "warn";
+}
+function badge(text) {
+  const s = String(text || "").toUpperCase();
+  const cls = /CONNECTED|AVAILABLE|READY|UP|RUNNING|OK/.test(s) ? "ok"
+    : /DISCONNECTED|ERROR|UNAVAILABLE|DOWN|FAILED/.test(s) ? "err" : "";
+  return "<span class=\"badge " + cls + "\">" + esc(s || "—") + "</span>";
+}
+function fillSelect(select, items, selected, emptyLabel) {
+  select.innerHTML = "";
+  if (!items.length) {
+    const option = document.createElement("option");
+    option.value = ""; option.textContent = emptyLabel || "—";
+    select.appendChild(option); return;
+  }
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item.id; option.textContent = item.label;
+    if (item.runtimeId) option.dataset.runtimeId = item.runtimeId;
+    select.appendChild(option);
+  }
+  if (selected && items.some(i => i.id === selected)) select.value = selected;
+}
+
+function runtimeItems() {
+  return S.runtimes.map(r => ({ id: String(val(r, "id")),
+    label: String(val(r, "name", "id")) + (val(r, "default") === true ? " ★" : "") }));
+}
+function modelItems() {
+  return S.models.map(m => ({ id: String(val(m, "id")), runtimeId: String(val(m, "runtimeId", "providerId")),
+    label: (val(m, "runtimeName") ? String(val(m, "runtimeName")) + " :: " : "") + String(val(m, "name", "id")) }));
+}
+function agentItems() {
+  return S.agents.map(a => ({ id: String(val(a, "id")),
+    label: String(val(a, "name", "id")) + (val(a, "default") === true ? " ★" : "") }));
+}
+function profileItems() {
+  return S.profiles.map(p => ({ id: String(val(p, "id")),
+    label: String(val(p, "name", "id")) + (val(p, "default") === true ? " ★" : "") }));
+}
+
+function renderRuntimeTable() {
+  if (!S.runtimes.length) { $("runtimeTable").innerHTML = "<tbody><tr><td class=\"muted\">none</td></tr></tbody>"; return; }
+  const rows = S.runtimes.map(r => {
+    const id = String(val(r, "id"));
+    const enabled = val(r, "enabled") !== false && val(r, "enabled") !== "false";
+    return "<tr><td>" + esc(val(r, "name", "id")) + (val(r, "default") === true ? " ★" : "")
+      + "</td><td>" + esc(val(r, "type")) + "</td><td style=\"max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\">" + esc(val(r, "endpoint", "baseUrl")) + "</td>"
+      + "<td>" + badge(statusOf(r)) + "</td>"
+      + "<td style=\"text-align:right\"><button class=\"switch " + (enabled ? "on" : "") + "\" data-id=\"" + esc(id) + "\" data-enabled=\"" + (enabled ? "1" : "0") + "\"></button></td></tr>";
+  }).join("");
+  $("runtimeTable").innerHTML = "<tbody>" + rows + "</tbody>";
+  document.querySelectorAll("#runtimeTable .switch").forEach(sw => sw.onclick = async () => {
+    const enable = sw.dataset.enabled !== "1";
+    try {
+      await api(API + "/runtimes/" + encodeURIComponent(sw.dataset.id) + "/" + (enable ? "enable" : "disable"), { method: "POST", body: "{}" });
+      sw.dataset.enabled = enable ? "1" : "0"; sw.classList.toggle("on", enable);
+      toast("Runtime " + sw.dataset.id + (enable ? " enabled" : " disabled"));
+    } catch (e) { toast("Failed: " + e.message); }
+  });
+}
+function listTable(elId, items, columns) {
+  if (!items.length) { $(elId).innerHTML = "<tbody><tr><td class=\"muted\">none</td></tr></tbody>"; return; }
+  const rows = items.map(item => "<tr>" + columns.map(c => {
+    const v = c.render ? c.render(item) : val(item, c.key);
+    return "<td>" + (c.esc !== false ? esc(v) : v) + "</td>";
+  }).join("") + "</tr>").join("");
+  $(elId).innerHTML = "<tbody>" + rows + "</tbody>";
+}
+function renderAll() {
+  renderRuntimeTable();
+  listTable("providerTable", S.providers, [{ key: "id" }, { key: "name" }, { key: "type" }, { key: "baseUrl" }]);
+  listTable("harnessTable", S.harnesses, [
+    { key: "name" }, { key: "description" },
+    { render: h => badge(val(h, "usable") === false ? "UNAVAILABLE" : (val(h, "integrated") === true ? "AVAILABLE" : "EXTERNAL")), esc: false }
+  ]);
+  listTable("agentTable", S.agents, [{ key: "name" }, { key: "role" }]);
+  listTable("profileTable", S.profiles, [{ key: "name" }, { key: "id" }]);
+  listTable("portTable", arrOf(S.ports), [{ key: "service" }, { key: "expected" }, { key: "actual" }, { key: "bind" }, { key: "state" }]);
+  listTable("workspaceTable", S.workspaces, [{ key: "name" }, { key: "rootPath" }]);
+  fillSelect($("selRuntime"), runtimeItems(), sel.runtime, "no runtime");
+  fillSelect($("selModel"), modelItems(), sel.model, "no model");
+  fillSelect($("selAgent"), agentItems(), sel.agent, "no agent");
+  fillSelect($("selProfile"), profileItems(), sel.profile, "no profile");
+}
+
+async function loadAllModels() {
+  sel.model = sel.model || "";
+  if (!S.runtimes.length) {
+    try { S.models = arrOf(await api(API + "/models")); } catch (e) { S.models = []; }
+    return;
+  }
+  const all = [];
+  for (const runtime of S.runtimes) {
+    const runtimeId = String(val(runtime, "id"));
+    try {
+      const models = arrOf(await api(API + "/models?runtimeId=" + encodeURIComponent(runtimeId)));
+      for (const m of models) all.push(Object.assign({}, m, { runtimeName: String(val(runtime, "name", "id")) }));
+    } catch (e) { /* runtime unavailable */ }
+  }
+  if (!all.length) {
+    try {
+      for (const m of arrOf(await api(API + "/models"))) {
+        const rid = String(val(m, "runtimeId", "providerId"));
+        const rt = S.runtimes.find(r => String(val(r, "id")) === rid);
+        all.push(Object.assign({}, m, { runtimeName: rt ? String(val(rt, "name", "id")) : rid }));
+      }
+    } catch (e) { /* ignore */ }
+  }
+  S.models = all;
+}
+
+async function loadDefaults() {
+  const defRuntime = S.runtimes.find(r => val(r, "default") === true);
+  sel.runtime = sel.runtime || (defRuntime ? String(val(defRuntime, "id")) : "");
+  const defAgent = S.agents.find(a => val(a, "default") === true);
+  sel.agent = sel.agent || (defAgent ? String(val(defAgent, "id")) : "");
+  const defProfile = S.profiles.find(p => val(p, "default") === true);
+  sel.profile = sel.profile || (defProfile ? String(val(defProfile, "id")) : "");
+  const defModel = defRuntime ? String(val(defRuntime, "defaultModel")) : "";
+  if (defModel && !sel.model) sel.model = defModel;
+}
+
+async function boot() {
+  banner("");
+  try {
+    const health = await api(API + "/health");
+    $("cState").textContent = health.ready ? "READY" : (val(health, "status") || "UP");
+    $("cEndpoint").textContent = window.location.origin;
+    $("cBackend").textContent = val(health, "application") || "DCODE";
+    $("cVersion").textContent = val(health, "version") || "?";
+    $("dot").className = "dot ok";
+    $("connText").textContent = "READY · " + window.location.origin;
+    S.runtimes = arrOf(await api(API + "/runtimes"));
+    S.providers = arrOf(await api(API + "/providers"));
+    S.harnesses = arrOf(await api(API + "/harnesses"));
+    S.agents = arrOf(await api(API + "/agents"));
+    S.profiles = arrOf(await api(API + "/profiles"));
+    S.ports = arrOf(await api(API + "/ports"));
+    try { S.workspaces = arrOf(await api(API + "/workspaces")); } catch (e) { S.workspaces = []; }
+    await loadDefaults();
+    renderAll();
+    await loadAllModels();
+    renderAll();
+    banner("");
+  } catch (e) {
+    $("cState").textContent = "unreachable";
+    $("connText").textContent = e.message;
+    $("dot").className = "dot err";
+    banner("Cannot reach the DCode backend (" + e.message + "). Use Retry to reload.", "err");
+  }
+}
+
+$("retryBtn").onclick = boot;
+$("tokenBtn").onclick = () => {
+  let current = "";
+  try { current = sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { /* ignore */ }
+  const value = window.prompt("Bearer token (leave empty to clear)", current);
+  if (value === null) { return; }
+  try {
+    if (value.trim()) sessionStorage.setItem(TOKEN_KEY, value.trim());
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch (e) { /* ignore */ }
+  boot();
+};
+$("wsRefreshBtn").onclick = async () => { try { S.workspaces = arrOf(await api(API + "/workspaces")); renderAll(); } catch (e) { toast("Refresh failed: " + e.message); } };
+$("scanBtn").onclick = $("scanBtn2").onclick = async () => {
+  try {
+    $("scanHint").textContent = "scanning…";
+    await api(API + "/runtimes/scan", { method: "POST", body: JSON.stringify({ endpoints: [] }) });
+    S.runtimes = arrOf(await api(API + "/runtimes"));
+    await loadAllModels();
+    renderAll();
+    $("scanHint").textContent = "scan complete";
+    toast("Scanned local runtimes.");
+  } catch (e) { $("scanHint").textContent = "scan failed: " + e.message; }
+};
+$("browseBtn").onclick = async () => {
+  try { await loadAllModels(); renderAll(); toast("Loaded all available models."); }
+  catch (e) { toast("Browse failed: " + e.message); }
+};
+$("selRuntime").onchange = () => { sel.runtime = $("selRuntime").value; };
+$("selModel").onchange = () => {
+  sel.model = $("selModel").value;
+  const option = $("selModel").selectedOptions[0];
+  if (option && option.dataset.runtimeId) { sel.runtime = option.dataset.runtimeId; $("selRuntime").value = option.dataset.runtimeId; }
+};
+$("selAgent").onchange = () => { sel.agent = $("selAgent").value; };
+$("selProfile").onchange = () => { sel.profile = $("selProfile").value; };
+$("applyDefaults").onclick = async () => {
+  try {
+    if (sel.runtime) await api(API + "/runtimes/" + encodeURIComponent(sel.runtime) + "/default", { method: "POST", body: JSON.stringify(sel.model ? { modelId: sel.model } : {}) });
+    if (sel.agent) await api(API + "/agents/" + encodeURIComponent(sel.agent) + "/default", { method: "POST", body: "{}" });
+    if (sel.profile) await api(API + "/profiles/" + encodeURIComponent(sel.profile) + "/default", { method: "POST", body: "{}" });
+    toast("Defaults applied and persisted by the backend.");
+    boot();
+  } catch (e) { toast("Failed: " + e.message); }
+};
+$("wsCreateBtn").onclick = async () => {
+  const name = $("wsName").value.trim();
+  if (!name) { toast("Workspace name is required."); return; }
+  try {
+    await api(API + "/workspaces", { method: "POST", body: JSON.stringify({ name, rootPath: $("wsPath").value.trim() || undefined }) });
+    toast("Workspace created.");
+    $("wsName").value = ""; $("wsPath").value = "";
+    S.workspaces = arrOf(await api(API + "/workspaces"));
+    renderAll();
+  } catch (e) { toast("Create failed: " + e.message); }
+};
+boot();
+</script>
+</body>
+</html>
