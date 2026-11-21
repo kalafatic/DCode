@@ -1,6 +1,7 @@
 package eu.kalafatic.dcode.persistence.events;
 
 import eu.kalafatic.dcode.core.event.DCodeEvent;
+import eu.kalafatic.dcode.core.event.DCodeEventType;
 import eu.kalafatic.dcode.core.event.EventBus;
 import eu.kalafatic.dcode.persistence.db.SqliteDatabaseManager;
 
@@ -27,7 +28,10 @@ public final class EventLog implements AutoCloseable {
 
     public EventLog(SqliteDatabaseManager database, EventBus eventBus) {
         this.database = Objects.requireNonNull(database, "database");
-        this.subscription = eventBus.subscribe(e -> true, this::onEvent);
+        // MESSAGE_PARTIAL tokens are transient presentation deltas; the authoritative
+        // text is durably logged through MESSAGE_APPENDED.
+        this.subscription = eventBus.subscribe(e -> e.type() != DCodeEventType.MESSAGE_PARTIAL,
+                this::onEvent);
     }
 
     private void onEvent(DCodeEvent event) {

@@ -81,10 +81,47 @@ class RcpWorkbenchSmokeTest {
                 "eu.kalafatic.dcode.ui.views.javatools",
                 "eu.kalafatic.dcode.ui.views.changes",
                 "eu.kalafatic.dcode.ui.views.providers",
-                "eu.kalafatic.dcode.ui.views.connection"}) {
+                "eu.kalafatic.dcode.ui.views.connection",
+                "eu.kalafatic.dcode.ui.views.inference"}) {
             assertNotNull(workbench.getViewRegistry().find(viewId),
                     "view must be registered: " + viewId);
         }
+
+        // The inference workspace is part of the default perspective layout: it must
+        // instantiate without becoming an error part. The window is created
+        // asynchronously on the workbench thread, so poll for it.
+        org.eclipse.ui.IWorkbenchWindow window = null;
+        long windowDeadline = System.currentTimeMillis() + 30000;
+        while (System.currentTimeMillis() < windowDeadline) {
+            if (workbench.getWorkbenchWindows().length > 0) {
+                window = workbench.getWorkbenchWindows()[0];
+            } else if (workbench.getActiveWorkbenchWindow() != null) {
+                window = workbench.getActiveWorkbenchWindow();
+            }
+            if (window != null && window.getActivePage() != null) {
+                break;
+            }
+            Thread.sleep(200);
+        }
+        assertNotNull(window, "workbench window must appear");
+        final org.eclipse.ui.IWorkbenchWindow finalWindow = window;
+        org.eclipse.ui.IWorkbenchPage page = window.getActivePage();
+        assertNotNull(page, "active page must exist");
+        workbench.getDisplay().syncExec(() -> {
+            try {
+                page.showView("eu.kalafatic.dcode.ui.views.inference");
+            } catch (org.eclipse.ui.PartInitException e) {
+                throw new RuntimeException("Inference workspace failed to open: "
+                        + e.getMessage(), e);
+            }
+        });
+        workbench.getDisplay().syncExec(() -> {
+            org.eclipse.ui.IViewReference reference = finalWindow.getActivePage()
+                    .findViewReference("eu.kalafatic.dcode.ui.views.inference");
+            assertNotNull(reference, "inference workspace view reference must exist");
+            assertNotNull(reference.getView(false),
+                    "inference workspace view must instantiate");
+        });
 
         // graceful close
         final IWorkbench startedWorkbench = workbench;

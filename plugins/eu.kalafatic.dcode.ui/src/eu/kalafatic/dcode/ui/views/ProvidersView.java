@@ -34,7 +34,30 @@ public final class ProvidersView extends ViewPart implements Ui.Refreshable {
                 testFirstProvider();
             }
         });
+        hookContextMenu();
         refreshContent();
+    }
+
+    /** Context menu: the same operations as the toolbar. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            menu.add(new Action("Test connection") {
+                @Override
+                public void run() {
+                    testFirstProvider();
+                }
+            });
+            menu.add(new Action("Refresh") {
+                @Override
+                public void run() {
+                    refreshContent();
+                }
+            });
+        });
+        content.setMenu(manager.createContextMenu(content));
     }
 
     private void testFirstProvider() {

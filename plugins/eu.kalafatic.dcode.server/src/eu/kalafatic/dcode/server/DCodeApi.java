@@ -64,6 +64,7 @@ public final class DCodeApi {
     private final java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier;
     private final java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier;
     private final java.util.function.Supplier<eu.kalafatic.dcode.config.agent.AgentRegistry> agentSupplier;
+    private final java.util.function.Supplier<eu.kalafatic.dcode.config.profile.ProfileRegistry> profileSupplier;
     private volatile int httpPortActual;
     private volatile String httpPortBindAddress = "";
 
@@ -119,7 +120,7 @@ public final class DCodeApi {
         this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry,
                 runtimes, toolRegistry, sessionExecutor, lifecycle, configuration,
                 eventBus, toolEngineSupplier, repositoryOperationsSupplier,
-                gitAccountsSupplier, harnessSupplier, () -> null);
+                gitAccountsSupplier, harnessSupplier, () -> null, () -> null);
     }
 
     public DCodeApi(Supplier<SessionService> sessionSupplier,
@@ -134,6 +135,25 @@ public final class DCodeApi {
                     java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier,
                     java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier,
                     java.util.function.Supplier<eu.kalafatic.dcode.config.agent.AgentRegistry> agentSupplier) {
+        this(sessionSupplier, workspaceSupplier, reviewSupplier, providerRegistry,
+                runtimes, toolRegistry, sessionExecutor, lifecycle, configuration,
+                eventBus, toolEngineSupplier, repositoryOperationsSupplier,
+                gitAccountsSupplier, harnessSupplier, agentSupplier, () -> null);
+    }
+
+    public DCodeApi(Supplier<SessionService> sessionSupplier,
+                    Supplier<WorkspaceService> workspaceSupplier,
+                    Supplier<ReviewService> reviewSupplier,
+                    ProviderRegistry providerRegistry, RuntimeRegistry runtimes,
+                    ToolRegistry toolRegistry,
+                    SessionExecutor sessionExecutor, DCodeLifecycle lifecycle,
+                    ConfigurationService configuration, EventBus eventBus,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.tool.ToolEngine> toolEngineSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.repositories.service.RepositoryOperations> repositoryOperationsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.git.GitAccountManager> gitAccountsSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.harness.registry.HarnessRegistry> harnessSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.agent.AgentRegistry> agentSupplier,
+                    java.util.function.Supplier<eu.kalafatic.dcode.config.profile.ProfileRegistry> profileSupplier) {
         this.sessionSupplier = Objects.requireNonNull(sessionSupplier, "sessionSupplier");
         this.workspaceSupplier = Objects.requireNonNull(workspaceSupplier, "workspaceSupplier");
         this.reviewSupplier = Objects.requireNonNull(reviewSupplier, "reviewSupplier");
@@ -151,6 +171,7 @@ public final class DCodeApi {
         this.gitAccountsSupplier = Objects.requireNonNull(gitAccountsSupplier, "gitAccountsSupplier");
         this.harnessSupplier = Objects.requireNonNull(harnessSupplier, "harnessSupplier");
         this.agentSupplier = Objects.requireNonNull(agentSupplier, "agentSupplier");
+        this.profileSupplier = Objects.requireNonNull(profileSupplier, "profileSupplier");
     }
 
     /** Authorization: bearer token required only when a server token is configured. */
@@ -200,6 +221,9 @@ public final class DCodeApi {
             }
             if (parts.length >= 2 && parts[1].equals("sessions")) {
                 return payload(handleSessions(method, parts, session));
+            }
+            if (parts.length >= 2 && parts[1].equals("profiles")) {
+                return payload(handleProfiles(method, parts, session));
             }
             if (parts.length >= 2 && parts[1].equals("reviews")) {
                 return payload(handleReviews(method, parts, session));
@@ -355,11 +379,30 @@ public final class DCodeApi {
                         body.path("providerId").asText(null),
                         body.path("modelId").asText(null), role, null));
                 bindAgent(created, body.path("agentId").asText(null));
+                bindProfile(created, body.path("profileId").asText(null));
                 return ok(sessionNode(created));
             }
         }
         if (parts.length == 3 && method.equals("GET")) {
             return ok(sessionNode(requireSession(sessions, parts[2])));
+        }
+        if (parts.length == 4 && parts[3].equals("rename") && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            String title = body.path("title").asText(null);
+            if (title == null || title.isBlank()) {
+                throw new IllegalArgumentException("Field 'title' is required");
+            }
+            return ok(sessionNode(sessions.renameSession(parts[2], title)));
+        }
+        if (parts.length == 3 && method.equals("DELETE")) {
+            if (sessionExecutor != null) {
+                sessionExecutor.cancel(parts[2]);
+            }
+            sessions.deleteSession(parts[2]);
+            ObjectNode node = mapper.createObjectNode();
+            node.put("id", parts[2]);
+            node.put("deleted", true);
+            return ok(node);
         }
         if (parts.length == 4 && parts[3].equals("start") && method.equals("POST")) {
             if (sessionExecutor == null) {
@@ -372,6 +415,9 @@ public final class DCodeApi {
             }
             String providerId = body.path("providerId").asText(null);
             String modelId = body.path("modelId").asText(null);
+            eu.kalafatic.dcode.core.model.Session target = requireSession(sessions, parts[2]);
+            bindAgentIfChanged(target, body.path("agentId").asText(null));
+            bindProfileIfChanged(target, body.path("profileId").asText(null));
             sessionExecutor.submit(parts[2], task, providerId, modelId);
             return ok(statusNode("accepted", "Execution submitted"));
         }
@@ -1537,6 +1583,163 @@ public final class DCodeApi {
         envelope.put("instructions", agent.systemInstructions());
         sessionSupplier.get().appendMessage(created.getId(), MessageRole.SYSTEM,
                 envelope.toString());
+    }
+
+    /**
+     * Binds a conversation profile to a freshly created session: the profile
+     * instructions are stored as a dedicated SYSTEM message rendered by the harness
+     * as part of the system prompt. An explicitly requested profile wins; otherwise
+     * the registered default profile is bound.
+     */
+    private void bindProfile(eu.kalafatic.dcode.core.model.Session created,
+                             String profileId) {
+        eu.kalafatic.dcode.config.profile.ProfileRegistry registry = profileSupplier.get();
+        if (registry == null) {
+            return;
+        }
+        eu.kalafatic.dcode.config.profile.ConversationProfile profile = null;
+        if (profileId != null && !profileId.isBlank()) {
+            profile = registry.find(profileId).orElse(null);
+        }
+        if (profile == null) {
+            profile = registry.defaultProfile().orElse(null);
+        }
+        if (profile == null) {
+            return;
+        }
+        ObjectNode envelope = mapper.createObjectNode();
+        envelope.put("source", "DCODE_CONVERSATION_PROFILE");
+        envelope.put("profileId", profile.id());
+        envelope.put("name", profile.name());
+        envelope.put("instructions", profile.systemInstructions());
+        sessionSupplier.get().appendMessage(created.getId(), MessageRole.SYSTEM,
+                envelope.toString());
+    }
+
+    /** Binds an agent only when it differs from the most recent bound agent. */
+    private void bindAgentIfChanged(eu.kalafatic.dcode.core.model.Session session,
+                                    String agentId) {
+        eu.kalafatic.dcode.config.agent.AgentRegistry registry = agentSupplier.get();
+        if (registry == null) {
+            return;
+        }
+        eu.kalafatic.dcode.config.agent.AgentDefinition agent = null;
+        if (agentId != null && !agentId.isBlank()) {
+            agent = registry.find(agentId).orElse(null);
+        }
+        if (agent == null) {
+            agent = registry.defaultAgent().orElse(null);
+        }
+        if (agent == null) {
+            return;
+        }
+        if (agent.id().equals(lastEnvelopeId(session.getId(), "DCODE_AGENT_PROFILE",
+                "agentId"))) {
+            return;
+        }
+        bindAgent(session, agent.id());
+    }
+
+    /** Binds a profile only when it differs from the most recent bound profile. */
+    private void bindProfileIfChanged(eu.kalafatic.dcode.core.model.Session session,
+                                      String profileId) {
+        eu.kalafatic.dcode.config.profile.ProfileRegistry registry = profileSupplier.get();
+        if (registry == null) {
+            return;
+        }
+        eu.kalafatic.dcode.config.profile.ConversationProfile profile = null;
+        if (profileId != null && !profileId.isBlank()) {
+            profile = registry.find(profileId).orElse(null);
+        }
+        if (profile == null) {
+            profile = registry.defaultProfile().orElse(null);
+        }
+        if (profile == null) {
+            return;
+        }
+        if (profile.id().equals(lastEnvelopeId(session.getId(),
+                "DCODE_CONVERSATION_PROFILE", "profileId"))) {
+            return;
+        }
+        bindProfile(session, profile.id());
+    }
+
+    /** Id of the most recent bound envelope of the given source, or "". */
+    private String lastEnvelopeId(String sessionId, String source, String idField) {
+        List<eu.kalafatic.dcode.core.model.Message> messages =
+                sessionSupplier.get().listMessages(sessionId);
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            eu.kalafatic.dcode.core.model.Message message = messages.get(i);
+            if (message.role() == MessageRole.SYSTEM && message.content() != null
+                    && message.content().startsWith("{\"source\":\"" + source + "\"")) {
+                try {
+                    JsonNode envelope = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readTree(message.content());
+                    return envelope.path(idField).asText("");
+                } catch (Exception ignored) {
+                    return "";
+                }
+            }
+        }
+        return "";
+    }
+
+    private String handleProfiles(String method, String[] parts,
+                                  NanoHTTPD.IHTTPSession session) throws IOException {
+        eu.kalafatic.dcode.config.profile.ProfileRegistry registry = profileSupplier.get();
+        if (registry == null) {
+            throw new IllegalStateException("Profile registry is not available");
+        }
+        if (parts.length == 2 && method.equals("GET")) {
+            ArrayNode array = mapper.createArrayNode();
+            for (var profile : registry.profiles()) {
+                array.add(profileNode(profile));
+            }
+            return ok(array);
+        }
+        if (parts.length == 2 && method.equals("POST")) {
+            JsonNode body = parseBody(session);
+            String id = body.path("id").asText(null);
+            if (id == null || id.isBlank()) {
+                id = UUID.randomUUID().toString();
+            }
+            if (registry.find(id).isPresent() && registry.find(id).get().builtin()) {
+                throw new IllegalArgumentException("Built-in profiles are immutable");
+            }
+            var profile = new eu.kalafatic.dcode.config.profile.ConversationProfile(id,
+                    body.path("name").asText(id),
+                    body.path("description").asText(""),
+                    body.path("systemInstructions").asText(""),
+                    false);
+            return ok(profileNode(registry.register(profile)));
+        }
+        if (parts.length == 3 && method.equals("DELETE")) {
+            registry.unregister(parts[2]);
+            ObjectNode node = mapper.createObjectNode();
+            node.put("id", parts[2]);
+            node.put("removed", true);
+            return ok(node);
+        }
+        if (parts.length == 4 && parts[3].equals("default") && method.equals("POST")) {
+            registry.setDefaultProfile(parts[2]);
+            return ok(profileNode(registry.find(parts[2]).orElseThrow()));
+        }
+        throw new NotFoundException("Unknown route segment");
+    }
+
+    private ObjectNode profileNode(eu.kalafatic.dcode.config.profile.ConversationProfile profile) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", profile.id());
+        node.put("name", profile.name());
+        node.put("description", profile.description());
+        node.put("systemInstructions", profile.systemInstructions());
+        node.put("builtin", profile.builtin());
+        boolean isDefault = profileSupplier.get() != null
+                && profileSupplier.get().defaultProfile().map(
+                        eu.kalafatic.dcode.config.profile.ConversationProfile::id)
+                .orElse("").equals(profile.id());
+        node.put("default", isDefault);
+        return node;
     }
 
     private String handleAgents(String method, String[] parts,

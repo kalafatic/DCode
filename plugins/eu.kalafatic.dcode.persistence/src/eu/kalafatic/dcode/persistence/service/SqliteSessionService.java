@@ -178,6 +178,59 @@ public final class SqliteSessionService implements SessionService {
     }
 
     @Override
+    public Session renameSession(String sessionId, String newTitle) {
+        if (newTitle == null || newTitle.isBlank()) {
+            throw new IllegalArgumentException("Session title must not be blank");
+        }
+        Object lock = sessionLocks.computeIfAbsent(sessionId, k -> new Object());
+        synchronized (lock) {
+            getSession(sessionId).orElseThrow(
+                    () -> new IllegalArgumentException("Unknown session: " + sessionId));
+            Instant updatedAt = Instant.now();
+            database.inTransaction(connection -> {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?")) {
+                    statement.setString(1, newTitle);
+                    statement.setString(2, updatedAt.toString());
+                    statement.setString(3, sessionId);
+                    statement.executeUpdate();
+                }
+            });
+            eventBus.publish(StandardEvent.of(DCodeEventType.SESSION_RENAMED, sessionId,
+                    "{\"title\":\"" + escapeJson(newTitle) + "\"}"));
+            return getSession(sessionId).orElseThrow();
+        }
+    }
+
+    @Override
+    public void deleteSession(String sessionId) {
+        Object lock = sessionLocks.computeIfAbsent(sessionId, k -> new Object());
+        synchronized (lock) {
+            if (getSession(sessionId).isEmpty()) {
+                return; // idempotent
+            }
+            database.inTransaction(connection -> {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM messages WHERE session_id = ?")) {
+                    statement.setString(1, sessionId);
+                    statement.executeUpdate();
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM sessions WHERE id = ?")) {
+                    statement.setString(1, sessionId);
+                    statement.executeUpdate();
+                }
+            });
+            eventBus.publish(StandardEvent.of(DCodeEventType.SESSION_DELETED, sessionId,
+                    "{\"sessionId\":\"" + escapeJson(sessionId) + "\"}"));
+        }
+    }
+
+    private static String escapeJson(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    @Override
     public List<Message> listMessages(String sessionId) {
         return database.query(connection -> {
             List<Message> result = new ArrayList<>();

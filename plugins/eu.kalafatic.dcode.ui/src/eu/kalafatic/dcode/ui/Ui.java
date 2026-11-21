@@ -37,6 +37,22 @@ public final class Ui {
 
     private static final List<SessionListener> SESSION_LISTENERS = new CopyOnWriteArrayList<>();
 
+    /** Raw SSE event consumers (registered by the inference workspace view). */
+    public interface SseEventListener {
+        void onEvent(DCodeSseClient.SseEvent event);
+    }
+
+    private static final List<SseEventListener> SSE_EVENT_LISTENERS = new CopyOnWriteArrayList<>();
+
+    /** Registers a raw SSE event consumer; invoked on the display thread. */
+    public static void addSseEventListener(SseEventListener listener) {
+        SSE_EVENT_LISTENERS.add(listener);
+    }
+
+    public static void removeSseEventListener(SseEventListener listener) {
+        SSE_EVENT_LISTENERS.remove(listener);
+    }
+
     /** Aggregated failures: key -> (lastTimestamp, count). */
     private static final Map<String, long[]> FAILURE_AGGREGATES = new ConcurrentHashMap<>();
     private static final long DEDUP_WINDOW_MILLIS = 30_000;
@@ -46,6 +62,14 @@ public final class Ui {
         public void onEvent(DCodeSseClient.SseEvent event) {
             Display.getDefault().asyncExec(() -> {
                 logEvent(event.type(), event.data());
+                for (SseEventListener listener : SSE_EVENT_LISTENERS) {
+                    try {
+                        listener.onEvent(event);
+                    } catch (RuntimeException listenerError) {
+                        System.out.println("[DCode:ui] SSE listener failed: "
+                                + listenerError.getMessage());
+                    }
+                }
                 refreshSessionViews();
             });
         }

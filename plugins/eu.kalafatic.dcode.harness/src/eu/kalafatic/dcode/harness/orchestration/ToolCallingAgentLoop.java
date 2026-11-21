@@ -4,7 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.kalafatic.dcode.config.provider.ChatMessage;
 import eu.kalafatic.dcode.config.provider.ChatRequest;
+import eu.kalafatic.dcode.config.provider.ProviderException;
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
+import eu.kalafatic.dcode.config.runtime.RuntimeRegistry;
+import eu.kalafatic.dcode.config.runtime.StreamHandle;
+import eu.kalafatic.dcode.config.runtime.StreamListener;
+import eu.kalafatic.dcode.config.runtime.StreamResult;
+import eu.kalafatic.dcode.core.event.DCodeEventType;
+import eu.kalafatic.dcode.core.event.EventBus;
+import eu.kalafatic.dcode.core.event.StandardEvent;
 import eu.kalafatic.dcode.core.model.MessageRole;
 import eu.kalafatic.dcode.core.model.Session;
 import eu.kalafatic.dcode.core.model.Workspace;
@@ -86,6 +94,7 @@ public final class ToolCallingAgentLoop {
                 effectiveSessionService.listMessages(session.getId());
         java.util.List<eu.kalafatic.dcode.core.model.Message> platformContexts = new java.util.ArrayList<>();
         java.util.List<eu.kalafatic.dcode.core.model.Message> agentProfiles = new java.util.ArrayList<>();
+        java.util.List<eu.kalafatic.dcode.core.model.Message> conversationProfiles = new java.util.ArrayList<>();
         java.util.List<eu.kalafatic.dcode.core.model.Message> historyMessages = new java.util.ArrayList<>();
         for (eu.kalafatic.dcode.core.model.Message message : sessionMessages) {
             if (message.role() == MessageRole.SYSTEM && message.content() != null
@@ -94,6 +103,9 @@ public final class ToolCallingAgentLoop {
             } else if (message.role() == MessageRole.SYSTEM && message.content() != null
                     && message.content().startsWith("{\"source\":\"DCODE_AGENT_PROFILE\"")) {
                 agentProfiles.add(message);
+            } else if (message.role() == MessageRole.SYSTEM && message.content() != null
+                    && message.content().startsWith("{\"source\":\"DCODE_CONVERSATION_PROFILE\"")) {
+                conversationProfiles.add(message);
             } else {
                 historyMessages.add(message);
             }
@@ -122,6 +134,20 @@ public final class ToolCallingAgentLoop {
                 // malformed profile: ignored, history assembly continues
             }
         }
+        for (eu.kalafatic.dcode.core.model.Message profile : conversationProfiles) {
+            try {
+                com.fasterxml.jackson.databind.JsonNode envelope =
+                        new com.fasterxml.jackson.databind.ObjectMapper().readTree(profile.content());
+                String instructions = envelope.path("instructions").asText("");
+                if (!instructions.isBlank()) {
+                    messages.add(ChatMessage.system("Conversation profile ("
+                            + envelope.path("name").asText("default")
+                            + "):\n" + instructions));
+                }
+            } catch (Exception ignored) {
+                // malformed profile: ignored, history assembly continues
+            }
+        }
         messages.add(ChatMessage.user("Task: " + task));
         String history = contextEngine.historySummary(historyMessages);
         if (!history.isBlank()) {
@@ -134,19 +160,20 @@ public final class ToolCallingAgentLoop {
                 if (cancellationRequested.getAsBoolean()) {
                     return new Outcome(false, "Cancelled by user", iteration, toolCalls, null);
                 }
-                var response = providers.complete(providerId, new ChatRequest(modelId,
-                        messages, 0.2, 4096));
-                String text = response.content().strip();
+                String text = providers instanceof RuntimeRegistry runtimes
+                        ? streamCompletion(runtimes, providerId, modelId, messages,
+                                session.getId(), services, cancellationRequested)
+                        : providers.complete(providerId, new ChatRequest(modelId, messages,
+                                0.2, 4096)).content().strip();
                 if (text.isEmpty()) {
                     // Empty model output (typically an exhausted context or a model
                     // that cannot follow the agent protocol): fail explicitly with a
                     // diagnostic instead of pretending completion.
                     return new Outcome(false, "Empty response from model '" + modelId
-                            + "' on runtime '" + providerId + "' (finishReason="
-                            + response.finishReason() + "): the model may not support "
-                            + "the coding-agent protocol or its context window is too "
-                            + "small for the harness prompt", iteration + 1, toolCalls,
-                            null);
+                            + "' on runtime '" + providerId + "': the model may not "
+                            + "support the coding-agent protocol or its context window "
+                            + "is too small for the harness prompt", iteration + 1,
+                            toolCalls, null);
                 }
                 effectiveSessionService.appendMessage(session.getId(), MessageRole.ASSISTANT, text);
 
@@ -195,6 +222,102 @@ public final class ToolCallingAgentLoop {
             return new Outcome(false, "Agent loop failed: " + e.getMessage(), 0, toolCalls,
                     e.getMessage());
         }
+    }
+
+    /**
+     * Streams one completion through a runtime with token-level progress events
+     * ({@code MESSAGE_PARTIAL}), blocking until the terminal callback or cancellation.
+     * Partial tokens are batched (>= 256 chars or >= 100 ms) to keep the event stream
+     * useful without flooding it.
+     */
+    private String streamCompletion(RuntimeRegistry runtimes, String providerId,
+                                    String modelId, List<ChatMessage> messages,
+                                    String sessionId, Map<String, Object> services,
+                                    BooleanSupplier cancellationRequested) {
+        StringBuilder buffer = new StringBuilder();
+        StringBuilder delta = new StringBuilder();
+        long[] lastFlush = {System.currentTimeMillis()};
+        final boolean[] terminated = {false};
+        final ProviderException[] failure = {null};
+        EventBus eventBus = (EventBus) services.get("eventBus");
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        StreamHandle[] handle = {StreamHandle.noop()};
+        handle[0] = runtimes.stream(providerId, new ChatRequest(modelId, messages, 0.2, 4096),
+                new StreamListener() {
+                    @Override
+                    public void onToken(String token) {
+                        if (token == null || token.isEmpty()) {
+                            return;
+                        }
+                        synchronized (buffer) {
+                            buffer.append(token);
+                            delta.append(token);
+                        }
+                        if (eventBus != null) {
+                            long now = System.currentTimeMillis();
+                            synchronized (buffer) {
+                                if (delta.length() >= 256 || now - lastFlush[0] >= 100) {
+                                    publishPartial(eventBus, sessionId, delta.toString());
+                                    delta.setLength(0);
+                                    lastFlush[0] = now;
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onComplete(StreamResult result) {
+                        terminated[0] = true;
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onError(ProviderException error) {
+                        failure[0] = error;
+                        terminated[0] = true;
+                        latch.countDown();
+                    }
+                });
+        try {
+            while (!terminated[0]) {
+                if (cancellationRequested.getAsBoolean()) {
+                    handle[0].cancel();
+                    if (!latch.await(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                        break;
+                    }
+                    break;
+                }
+                if (!latch.await(100, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                    continue;
+                }
+                break;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            handle[0].cancel();
+        }
+        synchronized (buffer) {
+            if (delta.length() > 0 && eventBus != null) {
+                publishPartial(eventBus, sessionId, delta.toString());
+                delta.setLength(0);
+            }
+        }
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+        return buffer.toString().strip();
+    }
+
+    private static void publishPartial(EventBus eventBus, String sessionId, String delta) {
+        if (delta == null || delta.isEmpty()) {
+            return;
+        }
+        eventBus.publish(StandardEvent.of(DCodeEventType.MESSAGE_PARTIAL, sessionId,
+                "{\"content\":\"" + escapeJson(delta) + "\"}"));
+    }
+
+    private static String escapeJson(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private JsonNode parseAction(String text) {

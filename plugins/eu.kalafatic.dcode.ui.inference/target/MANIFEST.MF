@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: DCode Inference Presentation
+Bundle-SymbolicName: eu.kalafatic.dcode.ui.inference;singleton:=true
+Bundle-Version: 2.6.11.202611202313
+Bundle-Vendor: Kalafatic
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=21))"
+Require-Bundle: org.eclipse.swt;bundle-version="3.0.0",org.eclipse.jface
+ ;bundle-version="3.0.0"
+Bundle-ClassPath: .
+Export-Package: eu.kalafatic.dcode.inference.ui,eu.kalafatic.dcode.infer
+ ence.ui.model
+Automatic-Module-Name: eu.kalafatic.dcode.ui.inference
+

@@ -33,24 +33,15 @@ public final class DCodePerspectiveFactory implements IPerspectiveFactory {
         String editorArea = layout.getEditorArea();
         layout.setEditorAreaVisible(true);
 
-        layout.addView("eu.kalafatic.dcode.ui.views.runtimeselector", IPageLayout.TOP,
-                0.07f, editorArea);
-        layout.getViewLayout("eu.kalafatic.dcode.ui.views.runtimeselector")
-                .setCloseable(false);
-        layout.getViewLayout("eu.kalafatic.dcode.ui.views.runtimeselector")
-                .setMoveable(false);
-
         layout.addView("eu.kalafatic.dcode.ui.views.workspace", IPageLayout.LEFT,
                 0.22f, editorArea);
         layout.addView("eu.kalafatic.dcode.ui.views.runtimeexplorer", IPageLayout.BOTTOM,
                 0.55f, "eu.kalafatic.dcode.ui.views.workspace");
 
-        layout.addView("eu.kalafatic.dcode.ui.views.aiworkspace", IPageLayout.RIGHT,
-                0.30f, editorArea);
-        layout.addView("eu.kalafatic.dcode.ui.views.sessionnavigator", IPageLayout.BOTTOM,
-                0.45f, "eu.kalafatic.dcode.ui.views.aiworkspace");
+        layout.addView("eu.kalafatic.dcode.ui.views.inference", IPageLayout.RIGHT,
+                0.42f, editorArea);
         layout.addView("eu.kalafatic.dcode.ui.views.agentexplorer", IPageLayout.BOTTOM,
-                0.45f, "eu.kalafatic.dcode.ui.views.sessionnavigator");
+                0.45f, "eu.kalafatic.dcode.ui.views.inference");
 
         var bottom = layout.createFolder("eu.kalafatic.dcode.ui.bottom",
                 IPageLayout.BOTTOM, 0.30f, editorArea);

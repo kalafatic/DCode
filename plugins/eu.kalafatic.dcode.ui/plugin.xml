@@ -75,6 +75,11 @@
             name="AI Selection"
             allowMultiple="false"/>
       <view category="eu.kalafatic.dcode.ui"
+            class="eu.kalafatic.dcode.ui.views.InferenceWorkspaceView"
+            id="eu.kalafatic.dcode.ui.views.inference"
+            name="Inference Workspace"
+            restorable="true"/>
+      <view category="eu.kalafatic.dcode.ui"
             class="eu.kalafatic.dcode.ui.views.AiWorkspaceView"
             id="eu.kalafatic.dcode.ui.views.aiworkspace"
             name="AI Workspace"
@@ -85,7 +90,7 @@
             name="Runtime &amp; Models"
             allowMultiple="false"/>
       <view category="eu.kalafatic.dcode.ui"
-            class="eu.kalafatic.dcode.ui.views.sessionnavigator"
+            class="eu.kalafatic.dcode.ui.views.SessionNavigatorView"
             id="eu.kalafatic.dcode.ui.views.sessionnavigator"
             name="Sessions"
             allowMultiple="false"/>

@@ -31,6 +31,7 @@
         <module>plugins/eu.kalafatic.dcode.persistence</module>
         <module>plugins/eu.kalafatic.dcode.server</module>
         <module>plugins/eu.kalafatic.dcode.ui</module>
+        <module>plugins/eu.kalafatic.dcode.ui.inference</module>
         <module>features/eu.kalafatic.dcode.feature</module>
         <module>product/eu.kalafatic.dcode.product</module>
         <module>tests/eu.kalafatic.dcode.tests</module>

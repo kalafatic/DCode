@@ -90,39 +90,12 @@ window.DCodeRuntimes = (function () {
         const actions = document.createElement('div');
         actions.className = 'row';
         actions.style.padding = '4px 0';
-        actions.appendChild(runtimeActionButton('Test', async () => {
-            try {
-                const result = await DCodeApi.post('/api/v1/runtimes/'
-                    + runtime.id + '/test');
-                DCodeApp.logConsole(result.success ? 'system' : 'error',
-                    'runtime ' + runtime.id + ' test: '
-                    + (result.success ? 'OK' : 'FAILED') + ' — ' + result.message);
-                loadRuntimes(list);
-            } catch (e) {
-                DCodeApp.logConsole('error', e.message);
-            }
-        }));
-        actions.appendChild(runtimeActionButton(runtime.enabled ? 'Disable' : 'Enable', async () => {
-            await DCodeApi.post('/api/v1/runtimes/' + runtime.id + '/'
-                + (runtime.enabled ? 'disable' : 'enable'));
-            loadRuntimes(list);
-        }));
-        actions.appendChild(runtimeActionButton('Edit', () =>
-            DCodeApp.openModal('runtime-edit', runtime)));
-        actions.appendChild(runtimeActionButton('Default', async () => {
-            await DCodeApi.post('/api/v1/runtimes/' + runtime.id + '/default', {});
-            DCodeApp.logConsole('system', runtime.id + ' is now the default runtime');
-            loadRuntimes(list);
-        }));
-        actions.appendChild(runtimeActionButton('Remove', async () => {
-            if (!confirm('Remove the runtime registration "' + runtime.id + '"?\n'
-                + 'Models and data on the external runtime are untouched.')) {
-                return;
-            }
-            await DCodeApi.del('/api/v1/runtimes/' + runtime.id);
-            DCodeApp.logConsole('system', 'runtime registration removed: ' + runtime.id);
-            loadRuntimes(list);
-        }, true));
+        actions.appendChild(runtimeActionButton('Test', () => testRuntime(runtime, list)));
+        actions.appendChild(runtimeActionButton(runtime.enabled ? 'Disable' : 'Enable',
+            () => toggleRuntime(runtime, list)));
+        actions.appendChild(runtimeActionButton('Edit', () => editRuntime(runtime)));
+        actions.appendChild(runtimeActionButton('Default', () => setDefaultRuntime(runtime, list)));
+        actions.appendChild(runtimeActionButton('Remove', () => removeRuntime(runtime, list), true));
         li.appendChild(actions);
         li.onclick = (event) => {
             if (event.target === actions) {
@@ -130,7 +103,60 @@ window.DCodeRuntimes = (function () {
             }
             showRuntimeDetails(runtime);
         };
+        // Context menu mirrors the RCP Runtime & Models view menu (same endpoints).
+        li.oncontextmenu = (event) => {
+            DCodeApp.showContextMenu(event, [
+                { label: 'Test connection', action: () => testRuntime(runtime, list) },
+                { label: 'Refresh models', action: () => loadRuntimes(list) },
+                {
+                    label: runtime.enabled ? 'Disable' : 'Enable',
+                    action: () => toggleRuntime(runtime, list)
+                },
+                { label: 'Set as default', action: () => setDefaultRuntime(runtime, list) },
+                { label: 'Edit…', action: () => editRuntime(runtime) },
+                { label: 'Remove', danger: true, action: () => removeRuntime(runtime, list) }
+            ]);
+        };
         return li;
+    }
+
+    async function testRuntime(runtime, list) {
+        try {
+            const result = await DCodeApi.post('/api/v1/runtimes/'
+                + runtime.id + '/test');
+            DCodeApp.logConsole(result.success ? 'system' : 'error',
+                'runtime ' + runtime.id + ' test: '
+                + (result.success ? 'OK' : 'FAILED') + ' — ' + result.message);
+            loadRuntimes(list);
+        } catch (e) {
+            DCodeApp.logConsole('error', e.message);
+        }
+    }
+
+    async function toggleRuntime(runtime, list) {
+        await DCodeApi.post('/api/v1/runtimes/' + runtime.id + '/'
+            + (runtime.enabled ? 'disable' : 'enable'));
+        loadRuntimes(list);
+    }
+
+    function editRuntime(runtime) {
+        DCodeApp.openModal('runtime-edit', runtime);
+    }
+
+    async function setDefaultRuntime(runtime, list) {
+        await DCodeApi.post('/api/v1/runtimes/' + runtime.id + '/default', {});
+        DCodeApp.logConsole('system', runtime.id + ' is now the default runtime');
+        loadRuntimes(list);
+    }
+
+    async function removeRuntime(runtime, list) {
+        if (!confirm('Remove the runtime registration "' + runtime.id + '"?\n'
+            + 'Models and data on the external runtime are untouched.')) {
+            return;
+        }
+        await DCodeApi.del('/api/v1/runtimes/' + runtime.id);
+        DCodeApp.logConsole('system', 'runtime registration removed: ' + runtime.id);
+        loadRuntimes(list);
     }
 
     function runtimeActionButton(label, action, danger) {

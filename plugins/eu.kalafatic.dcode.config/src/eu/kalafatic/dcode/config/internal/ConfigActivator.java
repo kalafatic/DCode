@@ -38,6 +38,8 @@ public final class ConfigActivator implements BundleActivator {
     private ServiceRegistration<GitAccountManager> gitAccountRegistration;
     private ServiceRegistration<eu.kalafatic.dcode.config.agent.AgentRegistry>
             agentRegistryRegistration;
+    private ServiceRegistration<eu.kalafatic.dcode.config.profile.ProfileRegistry>
+            profileRegistryRegistration;
     private ServiceAvailabilityGate gate;
     private eu.kalafatic.dcode.core.service.DynamicServiceLookup services;
 
@@ -66,6 +68,9 @@ public final class ConfigActivator implements BundleActivator {
         var agentRegistry = new eu.kalafatic.dcode.config.agent.DefaultAgentRegistry(
                 new eu.kalafatic.dcode.config.agent.JsonFileAgentStore(
                         configurationService.getConfiguration().dataDir()));
+        var profileRegistry = new eu.kalafatic.dcode.config.profile.DefaultProfileRegistry(
+                new eu.kalafatic.dcode.config.profile.JsonFileProfileStore(
+                        configurationService.getConfiguration().dataDir()));
 
         runtimeRegistryRegistration = context.registerService(RuntimeRegistry.class,
                 runtimeManager, null);
@@ -79,6 +84,9 @@ public final class ConfigActivator implements BundleActivator {
         agentRegistryRegistration = context.registerService(
                 eu.kalafatic.dcode.config.agent.AgentRegistry.class,
                 agentRegistry, null);
+        profileRegistryRegistration = context.registerService(
+                eu.kalafatic.dcode.config.profile.ProfileRegistry.class,
+                profileRegistry, null);
 
         lifecycle.registerAction(LifecycleStage.PROVIDERS, "provider-services",
                 new DCodeLifecycle.LifecycleAction() {
@@ -120,6 +128,9 @@ public final class ConfigActivator implements BundleActivator {
         if (agentRegistryRegistration != null) {
             agentRegistryRegistration.unregister();
         }
+        if (profileRegistryRegistration != null) {
+            profileRegistryRegistration.unregister();
+        }
         if (services != null) {
             services.close();
         }
@@ -131,5 +142,6 @@ public final class ConfigActivator implements BundleActivator {
         modelRouterRegistration = null;
         vaultRegistration = null;
         gitAccountRegistration = null;
+        profileRegistryRegistration = null;
     }
 }

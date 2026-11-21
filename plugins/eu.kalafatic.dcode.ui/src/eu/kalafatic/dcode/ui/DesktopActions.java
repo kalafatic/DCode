@@ -60,7 +60,8 @@ public final class DesktopActions {
         }
     }
 
-    private static void launchBrowser(String url) {
+    /** Opens a URL in the system browser (shared with {@link HelpLauncher}). */
+    static void launchBrowser(String url) {
         org.eclipse.swt.program.Program.launch(url);
     }
 

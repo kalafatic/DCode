@@ -125,10 +125,7 @@ public final class ConsoleView extends ViewPart implements Ui.Refreshable {
         clearButton.setText("Clear");
         clearButton.setToolTipText("Clear the visible console (the full buffer is kept "
                 + "for export)");
-        clearButton.addListener(SWT.Selection, event -> {
-            hiddenCount = entries.size();
-            render();
-        });
+        clearButton.addListener(SWT.Selection, event -> clearVisible());
 
         Button copyButton = new Button(toolbar, SWT.PUSH);
         copyButton.setText("Copy");
@@ -160,6 +157,41 @@ public final class ConsoleView extends ViewPart implements Ui.Refreshable {
                 export();
             }
         });
+        hookContextMenu();
+        render();
+    }
+
+    /** Context menu on the console text: the same operations as the toolbar. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            menu.add(new Action("Clear") {
+                @Override
+                public void run() {
+                    clearVisible();
+                }
+            });
+            menu.add(new Action("Copy") {
+                @Override
+                public void run() {
+                    copy();
+                }
+            });
+            menu.add(new Action("Save Output…") {
+                @Override
+                public void run() {
+                    export();
+                }
+            });
+        });
+        log.setMenu(manager.createContextMenu(log));
+    }
+
+    /** Hides the currently buffered entries from the visible console (kept for export). */
+    private void clearVisible() {
+        hiddenCount = entries.size();
         render();
     }
 

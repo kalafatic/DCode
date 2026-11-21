@@ -45,6 +45,22 @@ window.DCodeSessions = (function () {
                     li.appendChild(title);
                     li.appendChild(sub);
                     li.onclick = () => DCodeApp.openSession(session);
+                    li.oncontextmenu = (event) => {
+                        DCodeApp.showContextMenu(event, [
+                            {
+                                label: 'Open',
+                                action: () => DCodeApp.openSession(session)
+                            },
+                            {
+                                label: 'Rename…',
+                                action: () => renameSession(session, list)
+                            },
+                            {
+                                label: 'Delete', danger: true,
+                                action: () => deleteSession(session, list)
+                            }
+                        ]);
+                    };
                     list.appendChild(li);
                 }
             }
@@ -81,6 +97,68 @@ window.DCodeSessions = (function () {
             ARCHIVED: 'badge'
         }[state] || 'badge';
         return '<span class="' + cls + '">' + state + '</span>';
+    }
+
+    async function renameSession(session, list) {
+        const title = prompt('New title for ' + (session.title || session.id) + ':', 
+            session.title || '');
+        if (title === null) {
+            return;
+        }
+        try {
+            await DCodeApi.post('/api/v1/sessions/' + session.id + '/rename',
+                { title: title.trim() });
+            DCodeApp.logConsole('system', 'session renamed: ' + session.id);
+            load(list);
+        } catch (e) {
+            DCodeApp.reportError('rename session', e);
+        }
+    }
+
+    async function deleteSession(session, list) {
+        if (!confirm('Delete the session "' + (session.title || session.id)
+            + '"?\nIts message history is removed as well.')) {
+            return;
+        }
+        try {
+            await DCodeApi.del('/api/v1/sessions/' + session.id);
+            DCodeApp.logConsole('system', 'session deleted: ' + session.id);
+            load(list);
+        } catch (e) {
+            DCodeApp.reportError('delete session', e);
+        }
+    }
+
+    function copyText(text) {
+        const content = text || '';
+        if (!content) {
+            return;
+        }
+        navigator.clipboard.writeText(content).then(() =>
+            DCodeApp.logConsole('info', 'Copied to clipboard'));
+    }
+
+    /** Extracts the content of fenced code blocks (``` … ```); '' when none. */
+    function extractCodeBlocks(text) {
+        const source = text || '';
+        const blocks = [];
+        let fence = source.indexOf('```');
+        while (fence >= 0) {
+            const end = source.indexOf('```', fence + 3);
+            if (end < 0) {
+                break;
+            }
+            let block = source.slice(fence + 3, end);
+            const newline = block.indexOf('\n');
+            if (newline >= 0) {
+                block = block.slice(newline + 1); // strip the language tag line
+            }
+            if (block.trim()) {
+                blocks.push(block.trim());
+            }
+            fence = source.indexOf('```', end + 3);
+        }
+        return blocks.join('\n');
     }
 
     function renderDetail(session) {
@@ -170,6 +248,24 @@ window.DCodeSessions = (function () {
         ts.textContent = (message.timestamp || '').slice(11, 19) + ' ';
         line.appendChild(ts);
         line.appendChild(document.createTextNode(message.content || ''));
+        // Message model has no structured parts (flat role/content strings), so
+        // "Copy Code" extracts fenced blocks and falls back to the whole text.
+        // Retry/Continue are intentionally absent: no backend operation exists.
+        line.oncontextmenu = (event) => {
+            DCodeApp.showContextMenu(event, [
+                {
+                    label: 'Copy',
+                    action: () => copyText(message.content || '')
+                },
+                {
+                    label: 'Copy Code',
+                    action: () => {
+                        const code = extractCodeBlocks(message.content || '');
+                        copyText(code || (message.content || ''));
+                    }
+                }
+            ]);
+        };
         container.appendChild(line);
         container.scrollTop = container.scrollHeight;
     }

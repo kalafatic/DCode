@@ -6,7 +6,13 @@ public enum DCodeEventType {
     // Session lifecycle
     SESSION_CREATED,
     SESSION_STATE_CHANGED,
+    SESSION_RENAMED,
+    SESSION_DELETED,
     MESSAGE_APPENDED,
+
+    /** Incremental streaming tokens of an in-progress assistant message (dataJson:
+     *  {"content":"<delta>"}). The definitive message arrives via MESSAGE_APPENDED. */
+    MESSAGE_PARTIAL,
 
     // Execution
     AGENT_RUN_STARTED,

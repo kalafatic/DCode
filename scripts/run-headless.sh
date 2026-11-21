@@ -26,4 +26,4 @@ if [[ ! -x "${LAUNCHER}" ]]; then
     exit 1
 fi
 
-exec "${LAUNCHER}" -nosplash -consoleLog "$@"
+exec "${LAUNCHER}" -nosplash -consoleLog --launcher.suppressErrors "$@"

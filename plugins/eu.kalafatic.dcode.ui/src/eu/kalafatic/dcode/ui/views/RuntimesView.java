@@ -51,6 +51,7 @@ public final class RuntimesView extends ViewPart implements Ui.Refreshable {
         summary.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));
 
         contributeActions();
+        hookContextMenu();
 
         tree.addMouseListener(new MouseAdapter() {
             @Override
@@ -60,6 +61,20 @@ public final class RuntimesView extends ViewPart implements Ui.Refreshable {
         });
 
         refreshContent();
+    }
+
+    /** Context menu on the runtime table: the same operations as the toolbar. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> menu.add(new Action("Refresh") {
+            @Override
+            public void run() {
+                refreshContent();
+            }
+        }));
+        tree.setMenu(manager.createContextMenu(tree));
     }
 
     private void addColumn(String title, int width) {

@@ -170,6 +170,7 @@ public final class SessionExecutor {
                 services.put("gitAccounts", gitAccounts);
             }
             services.put("sessionService", sessionService);
+            services.put("eventBus", eventBus);
             var outcome = agentLoop.run(workspace, session, task, selection.providerId(),
                     selection.modelId(), services, cancelled::get);
 

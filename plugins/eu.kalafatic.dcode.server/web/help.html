@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCode Help</title>
+<style>
+  :root {
+    --bg: #14181f; --bg-2: #1b212b; --bg-3: #232b38; --border: #2f3a4a;
+    --fg: #d7dee9; --muted: #8a97a8; --accent: #4da3ff; --green: #57c785;
+    --yellow: #e0b34a; --red: #e06c6c; --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--bg-2);
+    border-bottom: 1px solid var(--border); padding: 14px 28px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  header .brand { font-size: 20px; font-weight: 700; color: #fff; }
+  header .brand span { color: var(--accent); }
+  header .sub { color: var(--muted); }
+  nav.toc {
+    padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--bg-2);
+  }
+  nav.toc a { color: var(--accent); text-decoration: none; margin-right: 14px; white-space: nowrap; }
+  nav.toc a:hover { text-decoration: underline; }
+  main { max-width: 960px; margin: 0 auto; padding: 18px 28px 80px; }
+  section { margin-top: 40px; scroll-margin-top: 90px; }
+  h2 { color: #fff; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { color: #fff; margin-top: 26px; }
+  a { color: var(--accent); }
+  code, pre { font-family: var(--mono); font-size: 13px; background: var(--bg-2); border: 1px solid var(--border); }
+  code { padding: 1px 5px; border-radius: 4px; }
+  pre { padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+  pre code { border: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-2); color: #fff; }
+  kbd {
+    display: inline-block; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--border);
+    border-bottom-width: 2px; background: var(--bg-3); font-family: var(--mono); font-size: 12px;
+  }
+  .note { border-left: 3px solid var(--accent); background: var(--bg-2); padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .warn { border-left-color: var(--yellow); }
+  .muted { color: var(--muted); }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">◈ <span>DCode</span> Help</div>
+  <div class="sub">Darwin Code — native AI coding harness</div>
+</header>
+
+<nav class="toc">
+  <a href="#top">Overview</a>
+  <a href="#getting-started">Getting Started</a>
+  <a href="#shortcuts">Keyboard Shortcuts</a>
+  <a href="#context">Context Help</a>
+  <a href="#cli">CLI Commands</a>
+  <a href="#diagnostics">Diagnostics</a>
+</nav>
+
+<main>
+
+<section id="top">
+  <h2>Overview</h2>
+  <p><strong>DCode</strong> is a native AI coding harness: an LLM-driven coding agent that plans,
+  executes tools (git, build, test, JDT analysis, refactoring) and produces reviewed changes in a
+  workspace. It is one product with three client faces over a single backend:</p>
+  <ul>
+    <li><strong>RCP IDE</strong> — Eclipse RCP desktop application (views, editors, console, activity).</li>
+    <li><strong>Web IDE</strong> — the served web interface (this server; open the site root).</li>
+    <li><strong>Headless server + CLI</strong> — the <code>dcode-headless</code> launcher with a command-line
+        interface against the same <code>/api/v1</code> endpoints.</li>
+  </ul>
+  <p>All three faces share the same application core: sessions, workspaces, repositories,
+  runtimes, models, agents, tool calls and reviews are persisted on the server and never
+  duplicated per client.</p>
+  <div class="note">Default HTTP port: <strong>48080</strong> (family convention <code>8x80 + product
+  offset</code>; the actually bound port is reported by <code>/api/v1/ports</code> and published as the
+  <code>dcode.server.port</code> system property).</div>
+</section>
+
+<section id="getting-started">
+  <h2>Getting Started</h2>
+  <ol>
+    <li><strong>Start the backend.</strong> Run the headless launcher
+        (<code>scripts/run-headless.sh</code>) or open the RCP IDE, which embeds the same server in
+        local mode.</li>
+    <li><strong>Connect the IDE.</strong> In RCP, <em>File ▸ Connect to Runtime…</em> shows the current
+        endpoint. Local mode targets the embedded server; set a remote URL to reach an independent
+        headless server (plus an optional bearer token).</li>
+    <li><strong>Register a runtime.</strong> Open <em>Window ▸ Runtime Explorer</em> (or the
+        <em>Runtimes</em> page of the web UI) and use <em>Add…</em> or <em>Scan local…</em> to register an
+        ENR, Ollama or OpenAI-compatible endpoint. Use <em>Test Connection</em> and check the model list
+        below the runtime.</li>
+    <li><strong>Create a workspace.</strong> Workspaces group repositories (git worktrees) and
+        sessions. The Workspace Explorer creates and manages them; repositories can be added,
+        cloned and inspected (status/diff/commit/pull/push) from its context menu.</li>
+    <li><strong>Start a session.</strong> <em>Sessions</em> view / page ▸ <em>New session…</em>, choose a
+        workspace (and optionally runtime/model). Open the session to make it active.</li>
+    <li><strong>Submit a task.</strong> In the Chat/AI Workspace view (or the web session tab) describe
+        the coding task. Execution runs on the backend; watch tool calls in the <em>Activity</em> view
+        and the structured console, and review the resulting changes in <em>Changes</em>.</li>
+    <li><strong>Direct chat.</strong> The Direct Inference Chat (Window ▸ Direct Inference Chat, or the
+        web "Direct chat" button) talks to a runtime/model without a coding task — useful for model
+        experiments.</li>
+  </ol>
+</section>
+
+<section id="shortcuts">
+  <h2>Keyboard Shortcuts</h2>
+  <p class="muted">Only actually bound actions are listed.</p>
+  <table>
+    <tr><th>Key</th><th>Action</th><th>Where</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New Session… (opens the Sessions view)</td><td>RCP workbench</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Open the Runtime Explorer view</td><td>RCP workbench</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd></td><td>Open the Direct Inference Chat</td><td>RCP workbench</td></tr>
+    <tr><td><kbd>F1</kbd></td><td>Context help for the active view (this page)</td><td>RCP workbench</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Y</kbd></td><td>Undo / Redo (standard Edit actions)</td><td>RCP text controls</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>X</kbd> / <kbd>C</kbd> / <kbd>V</kbd> / <kbd>A</kbd></td><td>Cut / Copy / Paste / Select all</td><td>RCP text controls</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Send the prompt (<kbd>Shift</kbd>+<kbd>Enter</kbd> for a newline)</td><td>Web Direct Inference Chat</td></tr>
+    <tr><td><kbd>↑</kbd>/<kbd>↓</kbd>, <kbd>Enter</kbd>, <kbd>Esc</kbd></td><td>Navigate / activate / close a context menu</td><td>Web UI context menus</td></tr>
+  </table>
+</section>
+
+<section id="context">
+  <h2>Context Help</h2>
+  <p class="muted">Press <kbd>F1</kbd> in any view to jump straight to its section.</p>
+
+  <h3 id="context-workspace">Workspace Explorer</h3>
+  <p>The left tree shows workspaces, their repositories and the file tree. Context menus offer
+  git operations (status, diff, commit, pull, push), opening files in the source editor and the
+  JDT AST summary for Java files. Repository operations are policy-enforced on the backend:
+  READ_ONLY repositories reject mutations.</p>
+
+  <h3 id="context-sessions">Sessions</h3>
+  <p>Persisted sessions per workspace. <em>Open</em> makes a session the active session and starts
+  its live event stream; running sessions offer <em>Cancel execution</em>. Sessions can be renamed
+  and deleted (web UI / CLI). Open executions are reconciled to FAILED on restart — they cannot
+  be resumed.</p>
+
+  <h3 id="context-chat">Chat / AI Workspace / Direct Inference Chat</h3>
+  <p>The chat transcript shows the session conversation (roles <em>you / agent / tool / system</em>);
+  messages stream in over SSE. The context menu offers <em>Copy</em> (selection or all) and
+  <em>Copy Code</em> (the fenced code blocks of the text). The AI Workspace view additionally
+  submits tasks or direct prompts; the Direct Inference Chat streams tokens from the selected
+  runtime/model without a coding task (its <em>Retry</em> button re-generates the last direct
+  response client-side).</p>
+
+  <h3 id="context-console">Console</h3>
+  <p>The structured console logs every operational entry (categories SYSTEM…EVENT) into a bounded
+  buffer that survives filtering, pausing and clearing — diagnostics are never discarded.
+  Toolbar and context menu: <em>Clear</em> (hides entries from view, buffer kept), <em>Copy</em>
+  (selection or visible text), <em>Save Output…</em> (exports the complete buffer to a .txt/.log
+  file), plus pause/auto-scroll and the toolbar's Copy all / Export….</p>
+
+  <h3 id="context-runtimes-models">Runtimes &amp; Models</h3>
+  <p>Runtime registrations (ENR, Ollama, OpenAI-compatible) with live availability: test the
+  connection, refresh/enable/disable, set the platform default, edit or remove a registration.
+  The model list under each runtime is real provider discovery. Model capabilities (load/unload/
+  pull) are exposed only when the runtime supports them. Double-clicking a model in the
+  Runtime &amp; Models view sets the platform default runtime/model.</p>
+
+  <h3 id="context-providers">Providers</h3>
+  <p>Read-only listing of the LLM providers the backend is configured with (a view over the
+  runtime registrations) plus <em>Test connection</em> against the first provider.</p>
+
+  <h3 id="context-agents">Agent Explorer</h3>
+  <p>Built-in and custom coding agents with role, system instructions, tool permissions and
+  preferred runtime/model. The <em>default</em> agent is bound to new sessions. Built-in agents
+  are immutable; custom agents can be created, edited and deleted (persisted on the backend,
+  shared with the web UI).</p>
+
+  <h3 id="context-activity">Activity</h3>
+  <p>Live tool calls of the agent execution: tool name, state, timing and error messages.</p>
+
+  <h3 id="context-changes">Changes</h3>
+  <p>The git state of the session workspace: changed files and the unified diff, straight from
+  the backend repository engine.</p>
+</section>
+
+<section id="cli">
+  <h2>CLI Commands</h2>
+  <p>Run <code>dcode-headless &lt;command&gt;</code> against the same backend as RCP and Web.
+  Commands may be written plain or slash-prefixed (<code>/status</code>); leading slashes are
+  normalized. With no command and an interactive terminal the launcher starts a
+  <code>dcode&gt;</code> REPL reading the same commands until <code>/exit</code> or EOF; without a
+  terminal it runs the server in the foreground (daemon mode).</p>
+  <pre><code>status [runtime]      backend readiness and lifecycle stages
+                    (with "runtime": runtime registrations summary)
+runtimes             runtime registrations with live availability
+providers [list]     provider listing
+providers test &lt;id&gt;  test one provider connection (POST /api/v1/providers/&lt;id&gt;/test)
+models [list]        unified model catalogue
+models show &lt;id&gt;     details of one model of the catalogue
+sessions [list]      sessions per workspace
+sessions show &lt;id&gt;   one session with its current state
+sessions delete &lt;id&gt; delete a session (DELETE /api/v1/sessions/&lt;id&gt;)
+logs [show]          recent buffered log entries of this process
+web                  open the web interface in the system browser
+terminal [dir]       open a system terminal (optionally in a directory)
+agents list          agent list with the default marker (GET /api/v1/agents)
+config show          effective config summary: port, data dir, workspaces dir (no secrets)
+stop                 stop the DCode server process on this port
+restart              stop the server (start it again afterwards)
+exit                 leave the interactive REPL (no-op as a launch argument)
+help [topic]         this help, or the help of one command
+                    (/help /status /web /terminal /models /sessions /providers
+                     /agents /config /logs /exit — slash forms are equivalent)</code></pre>
+</section>
+
+<section id="diagnostics">
+  <h2>Diagnostics</h2>
+  <ul>
+    <li><code>GET /api/v1/status</code> — readiness flag and lifecycle stage states.</li>
+    <li><code>GET /api/v1/ports</code> — the actually bound service ports and their states
+        (port conventions: DCode 48xxx).</li>
+    <li><code>GET /api/v1/health</code> — application identity, version and readiness (used by the
+        client probe).</li>
+    <li><code>GET /api/v1/events/stream[?sessionId=…]</code> — SSE stream of domain events
+        (MESSAGE_APPENDED, TOOL_CALL_COMPLETED, SESSION_STATE_CHANGED, …).</li>
+  </ul>
+  <p class="muted">All <code>/api/v1/*</code> endpoints require the configured bearer token when
+  authentication is enabled (development mode without a token is loopback-only).</p>
+</section>
+
+</main>
+</body>
+</html>

@@ -63,42 +63,19 @@ public final class AgentExplorerView extends ViewPart implements Ui.Refreshable 
         getViewSite().getActionBars().getToolBarManager().add(new Action("Edit…") {
             @Override
             public void run() {
-                JsonNode agent = selected();
-                if (agent != null && !agent.path("builtin").asBoolean()) {
-                    new AgentDialog(getSite().getShell(), agent).open();
-                    refreshContent();
-                } else {
-                    Ui.log("warning", "Built-in agents are immutable");
-                }
+                editSelected();
             }
         });
         getViewSite().getActionBars().getToolBarManager().add(new Action("Delete") {
             @Override
             public void run() {
-                JsonNode agent = selected();
-                if (agent == null || agent.path("builtin").asBoolean()) {
-                    Ui.log("warning", "Only custom agents can be deleted");
-                    return;
-                }
-                Ui.run(RuntimeConnection.instance().api().deleteAgent(
-                                agent.path("id").asText("")),
-                        json -> refreshContent(), "delete agent");
+                deleteSelected();
             }
         });
         getViewSite().getActionBars().getToolBarManager().add(new Action("Set default") {
             @Override
             public void run() {
-                JsonNode agent = selected();
-                if (agent == null) {
-                    return;
-                }
-                Ui.run(RuntimeConnection.instance().api().setDefaultAgent(
-                                agent.path("id").asText("")),
-                        json -> {
-                            Ui.log("harness", "Default agent: "
-                                    + agent.path("name").asText(""));
-                            refreshContent();
-                        }, "set default agent");
+                setDefaultSelected();
             }
         });
         getViewSite().getActionBars().getToolBarManager().add(new Action("Refresh") {
@@ -107,7 +84,71 @@ public final class AgentExplorerView extends ViewPart implements Ui.Refreshable 
                 refreshContent();
             }
         });
+        hookContextMenu();
         refreshContent();
+    }
+
+    /** Context menu: the same operations as the toolbar (shared implementations). */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            menu.add(new Action("Select as default") {
+                @Override
+                public void run() {
+                    setDefaultSelected();
+                }
+            });
+            menu.add(new Action("Configure…") {
+                @Override
+                public void run() {
+                    editSelected();
+                }
+            });
+        });
+        table.setMenu(manager.createContextMenu(table));
+    }
+
+    /** Opens the edit dialog for the selected custom agent (shared by toolbar+menu). */
+    private void editSelected() {
+        JsonNode agent = selected();
+        if (agent == null) {
+            return;
+        }
+        if (!agent.path("builtin").asBoolean()) {
+            new AgentDialog(getSite().getShell(), agent).open();
+            refreshContent();
+        } else {
+            Ui.log("warning", "Built-in agents are immutable");
+        }
+    }
+
+    /** Deletes the selected custom agent (shared by the toolbar Delete action). */
+    private void deleteSelected() {
+        JsonNode agent = selected();
+        if (agent == null || agent.path("builtin").asBoolean()) {
+            Ui.log("warning", "Only custom agents can be deleted");
+            return;
+        }
+        Ui.run(RuntimeConnection.instance().api().deleteAgent(
+                        agent.path("id").asText("")),
+                json -> refreshContent(), "delete agent");
+    }
+
+    /** Sets the selected agent as the platform default (shared by toolbar+menu). */
+    private void setDefaultSelected() {
+        JsonNode agent = selected();
+        if (agent == null) {
+            return;
+        }
+        Ui.run(RuntimeConnection.instance().api().setDefaultAgent(
+                        agent.path("id").asText("")),
+                json -> {
+                    Ui.log("harness", "Default agent: "
+                            + agent.path("name").asText(""));
+                    refreshContent();
+                }, "set default agent");
     }
 
     private JsonNode selected() {

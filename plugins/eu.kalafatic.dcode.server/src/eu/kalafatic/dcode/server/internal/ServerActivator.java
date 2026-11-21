@@ -71,7 +71,8 @@ public final class ServerActivator implements BundleActivator {
                 () -> services.get(eu.kalafatic.dcode.repositories.service.RepositoryOperations.class),
                 () -> services.get(eu.kalafatic.dcode.config.git.GitAccountManager.class),
                 () -> services.get(eu.kalafatic.dcode.harness.registry.HarnessRegistry.class),
-                () -> services.get(eu.kalafatic.dcode.config.agent.AgentRegistry.class));
+                () -> services.get(eu.kalafatic.dcode.config.agent.AgentRegistry.class),
+                () -> services.get(eu.kalafatic.dcode.config.profile.ProfileRegistry.class));
 
         lifecycle.registerAction(LifecycleStage.SERVER, "http-server",
                 new DCodeLifecycle.LifecycleAction() {

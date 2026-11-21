@@ -223,20 +223,22 @@ public final class DCodeActionBarAdvisor extends ActionBarAdvisor {
         });
         runMenu.add(showViewAction("&Execution activity",
                 "eu.kalafatic.dcode.ui.views.activity"));
-        runMenu.add(new Separator());
-        runMenu.add(new Action("&Open Web Interface") {
+        menuBar.add(runMenu);
+
+        MenuManager toolsMenu = new MenuManager("&Tools", "tools");
+        toolsMenu.add(new Action("&Open Web Interface") {
             @Override
             public void run() {
                 DesktopActions.openWebInterface();
             }
         });
-        runMenu.add(new Action("Open &Terminal in workspace") {
+        toolsMenu.add(new Action("Open &Terminal") {
             @Override
             public void run() {
                 DesktopActions.openTerminal();
             }
         });
-        menuBar.add(runMenu);
+        menuBar.add(toolsMenu);
 
         MenuManager windowMenu = new MenuManager("&Window", "window");
         windowMenu.add(new Action("Open Perspective: DCode") {
@@ -272,8 +274,73 @@ public final class DCodeActionBarAdvisor extends ActionBarAdvisor {
         menuBar.add(windowMenu);
 
         MenuManager helpMenu = new MenuManager("&Help", "help");
+        helpMenu.add(new Action("&Help Contents") {
+            @Override
+            public void run() {
+                HelpLauncher.openHelpContents();
+            }
+        });
+        helpMenu.add(helpTopicAction("&Getting Started", "getting-started"));
+        helpMenu.add(helpContextAction("Context &Help"));
+        helpMenu.add(helpTopicAction("&Keyboard Shortcuts", "shortcuts"));
+        helpMenu.add(helpTopicAction("&CLI Commands", "cli"));
+        helpMenu.add(helpDiagnosticsAction());
+        helpMenu.add(new Separator());
         helpMenu.add(aboutAction);
         menuBar.add(helpMenu);
+    }
+
+    private Action helpTopicAction(String label, String anchor) {
+        Action action = new Action(label) {
+            @Override
+            public void run() {
+                HelpLauncher.openHelpTopic(anchor);
+            }
+        };
+        action.setId("eu.kalafatic.dcode.ui.help." + anchor);
+        return action;
+    }
+
+    private Action helpContextAction(String label) {
+        Action action = new Action(label) {
+            @Override
+            public void run() {
+                String partId = activePartId();
+                HelpLauncher.contextHelpFor(partId);
+            }
+        };
+        action.setId("eu.kalafatic.dcode.ui.help.context");
+        // F1 itself is handled by the display key filter installed in
+        // DCodeWorkbenchWindowAdvisor (single implementation, no double trigger).
+        action.setToolTipText("Context help for the active view (F1)");
+        return action;
+    }
+
+    private Action helpDiagnosticsAction() {
+        Action action = new Action("&Diagnostics") {
+            @Override
+            public void run() {
+                String base = HelpLauncher.baseUrl();
+                DesktopActions.launchBrowser(base + "/api/v1/status");
+            }
+        };
+        action.setId("eu.kalafatic.dcode.ui.help.diagnostics");
+        action.setToolTipText("Open the backend diagnostics endpoint (/api/v1/status)");
+        return action;
+    }
+
+    /** Resolves the view id of the currently active part (null when unknown). */
+    private static String activePartId() {
+        try {
+            var window = org.eclipse.ui.PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+            if (window != null && window.getActivePage() != null
+                    && window.getActivePage().getActivePart() != null) {
+                return window.getActivePage().getActivePart().getSite().getId();
+            }
+        } catch (RuntimeException ignored) {
+            // workbench not available: fall back to the general context section
+        }
+        return null;
     }
 
     private Action showViewAction(String label, String viewId) {

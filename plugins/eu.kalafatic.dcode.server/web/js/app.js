@@ -17,6 +17,9 @@ window.DCodeApp = (function () {
         diagnostic: ''
     };
 
+    // ---------- context menu (keyboard-accessible) ----------
+    const menuState = { items: [], index: -1, trigger: null };
+
     // ---------- structured console ----------
     const consoleEntries = [];
     let consoleCategory = 'ALL';
@@ -583,33 +586,97 @@ window.DCodeApp = (function () {
     function showContextMenu(event, items) {
         const menu = document.getElementById('context-menu');
         menu.innerHTML = '';
+        menu.setAttribute('role', 'menu');
+        menuState.items = [];
         items.forEach((item) => {
             if (item === '-') {
                 const sep = document.createElement('div');
                 sep.className = 'menu-sep';
+                sep.setAttribute('role', 'separator');
                 menu.appendChild(sep);
                 return;
             }
             const el = document.createElement('div');
             el.className = 'menu-item' + (item.danger ? ' danger' : '');
             el.textContent = item.label;
+            el.setAttribute('role', 'menuitem');
+            el.setAttribute('tabindex', '-1');
             el.onclick = () => {
                 hideContextMenu();
                 item.action();
             };
             menu.appendChild(el);
+            menuState.items.push(el);
         });
         menu.classList.remove('hidden');
         menu.style.left = Math.min(event.clientX, window.innerWidth - 220) + 'px';
         menu.style.top = Math.min(event.clientY, window.innerHeight - 200) + 'px';
         event.preventDefault();
+        menuState.index = menuState.items.length > 0 ? 0 : -1;
+        menuState.trigger = event.target && typeof event.target.focus === 'function'
+            ? event.target : null;
+        if (menuState.index >= 0) {
+            focusMenuItem(menuState.index);
+        }
     }
 
     function hideContextMenu() {
-        document.getElementById('context-menu').classList.add('hidden');
+        const menu = document.getElementById('context-menu');
+        menu.classList.add('hidden');
+        menu.removeAttribute('role');
+        menuState.items.forEach((item) => item.classList.remove('focused'));
+        menuState.items = [];
+        menuState.index = -1;
+        menuState.trigger = null;
+    }
+
+    function focusMenuItem(index) {
+        const item = menuState.items[index];
+        if (!item) {
+            return;
+        }
+        menuState.items.forEach((candidate) => candidate.classList.remove('focused'));
+        menuState.index = index;
+        item.classList.add('focused');
+        item.focus();
+    }
+
+    function moveMenuFocus(delta) {
+        if (menuState.items.length === 0) {
+            return;
+        }
+        const next = (menuState.index + delta + menuState.items.length)
+            % menuState.items.length;
+        focusMenuItem(next);
     }
 
     document.addEventListener('click', hideContextMenu);
+
+    document.addEventListener('keydown', (event) => {
+        if (menuState.items.length === 0) {
+            return;
+        }
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            moveMenuFocus(1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            moveMenuFocus(-1);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            const item = menuState.items[menuState.index];
+            if (item) {
+                item.onclick();
+            }
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            const trigger = menuState.trigger;
+            hideContextMenu();
+            if (trigger) {
+                trigger.focus();
+            }
+        }
+    });
 
     // ---------- modals ----------
 

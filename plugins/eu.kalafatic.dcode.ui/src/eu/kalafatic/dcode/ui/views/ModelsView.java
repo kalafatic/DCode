@@ -64,7 +64,22 @@ public final class ModelsView extends ViewPart implements Ui.Refreshable {
         details.setLayoutData(detailsData);
 
         contributeActions();
+        hookContextMenu();
         refreshContent();
+    }
+
+    /** Context menu on the model tree: the same operations as the toolbar. */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> menu.add(new Action("Refresh") {
+            @Override
+            public void run() {
+                refreshContent();
+            }
+        }));
+        tree.setMenu(manager.createContextMenu(tree));
     }
 
     private void contributeActions() {

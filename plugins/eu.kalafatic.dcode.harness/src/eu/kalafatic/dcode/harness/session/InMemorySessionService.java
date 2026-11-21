@@ -130,6 +130,46 @@ public final class InMemorySessionService implements SessionService {
     }
 
     @Override
+    public Session renameSession(String sessionId, String newTitle) {
+        if (newTitle == null || newTitle.isBlank()) {
+            throw new IllegalArgumentException("Session title must not be blank");
+        }
+        Session updated = sessions.compute(sessionId, (id, current) -> {
+            if (current == null) {
+                throw new IllegalArgumentException("Unknown session: " + sessionId);
+            }
+            return Session.builder()
+                    .id(current.getId())
+                    .title(newTitle)
+                    .workspaceId(current.getWorkspaceId())
+                    .state(current.getState())
+                    .providerId(current.getProviderId())
+                    .modelId(current.getModelId())
+                    .agentRole(current.getAgentRole())
+                    .metadata(current.getMetadata())
+                    .createdAt(current.getCreatedAt())
+                    .updatedAt(Instant.now())
+                    .build();
+        });
+        eventBus.publish(StandardEvent.of(DCodeEventType.SESSION_RENAMED, sessionId,
+                "{\"title\":\"" + newTitle.replace("\\", "\\\\").replace("\"", "\\\"")
+                + "\"}"));
+        return updated;
+    }
+
+    @Override
+    public void deleteSession(String sessionId) {
+        Session removed = sessions.remove(sessionId);
+        if (removed == null) {
+            return; // idempotent
+        }
+        messages.remove(sessionId);
+        sequences.remove(sessionId);
+        eventBus.publish(StandardEvent.of(DCodeEventType.SESSION_DELETED, sessionId,
+                "{\"sessionId\":\"" + sessionId + "\"}"));
+    }
+
+    @Override
     public List<Message> listMessages(String sessionId) {
         List<Message> history = messages.get(sessionId);
         if (history == null) {

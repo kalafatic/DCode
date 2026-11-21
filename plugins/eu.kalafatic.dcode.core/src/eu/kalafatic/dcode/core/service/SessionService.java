@@ -37,6 +37,20 @@ public interface SessionService {
 
     List<Message> listMessages(String sessionId);
 
+    /**
+     * Renames a session. The new title must not be blank; a blank title is rejected.
+     * Published as {@code SESSION_RENAMED} after persistence.
+     *
+     * @throws IllegalArgumentException when the session does not exist or the title is blank
+     */
+    Session renameSession(String sessionId, String newTitle);
+
+    /**
+     * Deletes a session together with its message history. Idempotent for unknown ids.
+     * Published as {@code SESSION_DELETED} after persistence.
+     */
+    void deleteSession(String sessionId);
+
     /** Request payload for session creation. */
     record CreateSessionRequest(
             String title,

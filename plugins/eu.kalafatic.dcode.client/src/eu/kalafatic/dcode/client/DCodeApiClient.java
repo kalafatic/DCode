@@ -163,6 +163,17 @@ public final class DCodeApiClient {
     public CompletableFuture<Session> createSession(String title, String workspaceId,
                                                     String providerId, String modelId,
                                                     AgentRole agentRole) {
+        return createSession(title, workspaceId, providerId, modelId, agentRole, null, null);
+    }
+
+    /**
+     * Creates a session with the full selection context: agent and conversation
+     * profile are bound by the backend at creation time.
+     */
+    public CompletableFuture<Session> createSession(String title, String workspaceId,
+                                                    String providerId, String modelId,
+                                                    AgentRole agentRole, String agentId,
+                                                    String profileId) {
         ObjectNode body = mapper.createObjectNode();
         if (title != null && !title.isBlank()) {
             body.put("title", title);
@@ -177,7 +188,26 @@ public final class DCodeApiClient {
         if (agentRole != null) {
             body.put("agentRole", agentRole.name());
         }
+        if (agentId != null && !agentId.isBlank()) {
+            body.put("agentId", agentId);
+        }
+        if (profileId != null && !profileId.isBlank()) {
+            body.put("profileId", profileId);
+        }
         return post("/api/v1/sessions", body).thenApply(this::parseSession);
+    }
+
+    /** Renames a session (title must not be blank). */
+    public CompletableFuture<Session> renameSession(String sessionId, String title) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("title", title);
+        return post("/api/v1/sessions/" + sessionId + "/rename", body)
+                .thenApply(this::parseSession);
+    }
+
+    /** Deletes a session and its message history. Idempotent. */
+    public CompletableFuture<JsonNode> deleteSession(String sessionId) {
+        return delete("/api/v1/sessions/" + sessionId);
     }
 
     public CompletableFuture<Session> getSession(String sessionId) {
@@ -185,8 +215,36 @@ public final class DCodeApiClient {
     }
 
     public CompletableFuture<JsonNode> startTask(String sessionId, String task) {
+        return startTask(sessionId, task, null, null);
+    }
+
+    /** Submits a task with optional per-task provider/model overrides. */
+    public CompletableFuture<JsonNode> startTask(String sessionId, String task,
+                                                 String providerId, String modelId) {
+        return startTask(sessionId, task, providerId, modelId, null, null);
+    }
+
+    /**
+     * Submits a task with the full selection context: provider/model overrides and the
+     * agent/profile bound to the execution.
+     */
+    public CompletableFuture<JsonNode> startTask(String sessionId, String task,
+                                                 String providerId, String modelId,
+                                                 String agentId, String profileId) {
         ObjectNode body = mapper.createObjectNode();
         body.put("task", task);
+        if (providerId != null && !providerId.isBlank()) {
+            body.put("providerId", providerId);
+        }
+        if (modelId != null && !modelId.isBlank()) {
+            body.put("modelId", modelId);
+        }
+        if (agentId != null && !agentId.isBlank()) {
+            body.put("agentId", agentId);
+        }
+        if (profileId != null && !profileId.isBlank()) {
+            body.put("profileId", profileId);
+        }
         return post("/api/v1/sessions/" + sessionId + "/start", body);
     }
 
@@ -360,6 +418,32 @@ public final class DCodeApiClient {
 
     public CompletableFuture<JsonNode> deleteAgent(String agentId) {
         return delete("/api/v1/agents/" + agentId);
+    }
+
+    /** Conversation profiles (built-in and custom). */
+    public CompletableFuture<JsonNode> profiles() {
+        return get("/api/v1/profiles");
+    }
+
+    public CompletableFuture<JsonNode> saveProfile(String id, String name,
+                                                   String description,
+                                                   String systemInstructions) {
+        ObjectNode body = mapper.createObjectNode();
+        if (id != null && !id.isBlank()) {
+            body.put("id", id);
+        }
+        body.put("name", name);
+        body.put("description", description);
+        body.put("systemInstructions", systemInstructions);
+        return post("/api/v1/profiles", body);
+    }
+
+    public CompletableFuture<JsonNode> deleteProfile(String profileId) {
+        return delete("/api/v1/profiles/" + profileId);
+    }
+
+    public CompletableFuture<JsonNode> setDefaultProfile(String profileId) {
+        return post("/api/v1/profiles/" + profileId + "/default", mapper.createObjectNode());
     }
 
     public CompletableFuture<JsonNode> setDefaultAgent(String agentId) {

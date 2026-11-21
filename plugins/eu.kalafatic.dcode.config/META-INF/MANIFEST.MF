@@ -20,5 +20,6 @@ Export-Package: eu.kalafatic.dcode.config.credentials,
  eu.kalafatic.dcode.config.provider,
  eu.kalafatic.dcode.config.routing,
  eu.kalafatic.dcode.config.runtime,
- eu.kalafatic.dcode.config.agent
+ eu.kalafatic.dcode.config.agent,
+ eu.kalafatic.dcode.config.profile
 Automatic-Module-Name: eu.kalafatic.dcode.config

@@ -15,6 +15,13 @@
    <configIni use="default">
    </configIni>
 
+   <!-- Non-zero CLI exit codes must not block on an (invisible) GTK error
+        dialog: launcher.suppressErrors makes the native launcher report the
+        code on stderr and exit (verified live, headless). -->
+   <launcherArgs>
+      <programArgs>--launcher.suppressErrors</programArgs>
+   </launcherArgs>
+
    <launcher name="dcode-headless"/>
 
    <features>

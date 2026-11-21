@@ -457,6 +457,8 @@ pre.result {
     font-size: 12px;
 }
 .context-menu .menu-item:hover { background: var(--bg-3); }
+.context-menu .menu-item.focused,
+.context-menu .menu-item:focus { background: var(--bg-3); outline: none; }
 .context-menu .menu-sep { border-top: 1px solid var(--border); margin: 4px 0; }
 .context-menu .menu-item.danger { color: var(--red); }
 .hidden { display: none !important; }

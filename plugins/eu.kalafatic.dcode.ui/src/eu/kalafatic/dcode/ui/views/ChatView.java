@@ -53,7 +53,83 @@ public final class ChatView extends ViewPart implements Ui.Refreshable, Ui.Sessi
                 + "on the backend; do not wait on this input.");
 
         Ui.addSessionListener(this);
+        hookContextMenu();
         refreshContent();
+    }
+
+    /**
+     * Context menu on the transcript. The message model has no structured parts
+     * (messages are flat role/content strings from /api/v1/sessions/{id}/messages),
+     * so "Copy Code" extracts fenced code blocks from the text and falls back to the
+     * whole selection when no fences are present. Retry/Continue are intentionally
+     * absent: the backend has no retry/continue operation for session messages.
+     */
+    private void hookContextMenu() {
+        org.eclipse.jface.action.MenuManager manager =
+                new org.eclipse.jface.action.MenuManager();
+        manager.setRemoveAllWhenShown(true);
+        manager.addMenuListener(menu -> {
+            menu.add(new Action("Copy") {
+                @Override
+                public void run() {
+                    String selected = transcript.getSelectionText();
+                    String content = selected != null && !selected.isEmpty()
+                            ? selected : transcript.getText();
+                    copyToClipboard(content);
+                }
+            });
+            menu.add(new Action("Copy Code") {
+                @Override
+                public void run() {
+                    String selected = transcript.getSelectionText();
+                    String source = selected != null && !selected.isEmpty()
+                            ? selected : transcript.getText();
+                    String code = extractCodeBlocks(source);
+                    copyToClipboard(code.isBlank() ? source : code);
+                }
+            });
+        });
+        transcript.setMenu(manager.createContextMenu(transcript));
+    }
+
+    /** Extracts the content of fenced code blocks (``` … ```); empty when none. */
+    static String extractCodeBlocks(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        StringBuilder code = new StringBuilder();
+        int fence = text.indexOf("```");
+        while (fence >= 0) {
+            int end = text.indexOf("```", fence + 3);
+            if (end < 0) {
+                break;
+            }
+            String block = text.substring(fence + 3, end);
+            int newline = block.indexOf('\n');
+            if (newline >= 0) {
+                block = block.substring(newline + 1); // strip the language tag line
+            }
+            if (!block.isBlank()) {
+                if (code.length() > 0) {
+                    code.append('\n');
+                }
+                code.append(block.strip());
+            }
+            fence = text.indexOf("```", end + 3);
+        }
+        return code.toString();
+    }
+
+    private static void copyToClipboard(String content) {
+        if (content == null || content.isBlank()) {
+            return;
+        }
+        org.eclipse.swt.dnd.Clipboard clipboard = new org.eclipse.swt.dnd.Clipboard(
+                org.eclipse.swt.widgets.Display.getDefault());
+        clipboard.setContents(new Object[]{content},
+                new org.eclipse.swt.dnd.Transfer[]{
+                        org.eclipse.swt.dnd.TextTransfer.getInstance()});
+        clipboard.dispose();
     }
 
     private void submitTask() {
