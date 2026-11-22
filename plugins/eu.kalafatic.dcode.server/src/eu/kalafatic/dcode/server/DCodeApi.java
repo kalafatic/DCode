@@ -48,6 +48,10 @@ import java.util.function.Supplier;
  */
 public final class DCodeApi {
 
+    /** Frontend revision the web UI reports; must match web/js/api.js
+     *  DCODE_FRONTEND_BUILD (asserted by FrontendDeliveryTest). */
+    public static final String FRONTEND_VERSION = "web-20261122-r4";
+
     private final Supplier<SessionService> sessionSupplier;
     private final Supplier<WorkspaceService> workspaceSupplier;
     private final Supplier<ReviewService> reviewSupplier;
@@ -1582,6 +1586,12 @@ public final class DCodeApi {
         ObjectNode node = mapper.createObjectNode();
         node.put("application", "DCODE");
         node.put("version", "2.6.11");
+        // Must match web/js/api.js DCODE_FRONTEND_BUILD (FrontendDeliveryTest).
+        node.put("frontendVersion", FRONTEND_VERSION);
+        // Diagnostic only — never selects a serving path or implementation.
+        node.put("resourceSource", "osgi-bundle");
+        node.put("executionMode",
+                System.getProperty("eclipse.pde.launch") != null ? "pde" : "product");
         node.put("ready", lifecycle.isReady());
         node.put("status", lifecycle.isReady() ? "UP" : "DEGRADED");
         node.put("timestamp", Instant.now().toString());

@@ -161,15 +161,21 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 #left-nav {
     display: flex;
+    flex-direction: column;
     border-bottom: 1px solid var(--border);
     flex: none;
+    padding: 4px 0;
 }
+.nav-group-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--fg-2); font-weight: 600; padding: 6px 12px 2px;
+    font-family: var(--sans); }
+.nav-group { display: flex; }
 .nav-btn {
     flex: 1;
     background: transparent;
     border: none;
     color: var(--fg-2);
-    padding: 8px 4px;
+    padding: 7px 4px;
     font-size: 12px;
     cursor: pointer;
     border-bottom: 2px solid transparent;
@@ -625,3 +631,56 @@ td.sev-warning { color: var(--yellow); }
 .kv { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; }
 .kv .k { color: var(--fg-2); min-width: 110px; flex: none; }
 .kv .v { font-family: var(--mono); word-break: break-all; }
+
+/* ---------- direct chat markdown rendering (markdown.js) ---------- */
+.msg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.who { font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
+    color: var(--fg-2); font-family: var(--sans); }
+.msg-action { padding: 1px 8px; font-size: 10px; border-radius: 8px;
+    color: var(--fg-2); background: transparent; border: 1px solid var(--border);
+    cursor: pointer; font-family: var(--sans); }
+.msg-action:hover { color: var(--accent); border-color: var(--accent); }
+.chat-body { white-space: normal; word-break: break-word; line-height: 1.5; }
+.chat-body p { margin: 0 0 7px; }
+.chat-body p:last-child { margin-bottom: 0; }
+.chat-body ul, .chat-body ol { margin: 0 0 7px; padding-left: 20px; }
+.chat-body li { margin: 2px 0; }
+.chat-body a { color: var(--accent); }
+.chat-body strong { font-weight: 600; }
+.chat-body code.md-inline { background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 0 4px; font-size: 11px; }
+.chat-body pre { margin: 0 0 8px; background: var(--bg-0); border: 1px solid var(--border);
+    border-radius: 0 0 5px 5px; padding: 9px 11px; overflow-x: auto; }
+.chat-body pre code.md-code { white-space: pre; border: none; background: none; padding: 0;
+    font-size: 11.5px; }
+.md-code-head { display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg-2); border: 1px solid var(--border); border-bottom: none;
+    border-radius: 5px 5px 0 0; padding: 3px 8px; font-family: var(--mono);
+    font-size: 10px; color: var(--fg-2); text-transform: lowercase; }
+.md-copy { padding: 1px 8px; font-size: 10px; border-radius: 8px; color: var(--fg-2);
+    background: transparent; border: 1px solid var(--border); cursor: pointer;
+    font-family: var(--sans); }
+.md-copy:hover { color: var(--accent); border-color: var(--accent); }
+.syn-kw { color: var(--purple); }
+.syn-str { color: var(--green); }
+.syn-com { color: var(--fg-2); font-style: italic; }
+.syn-num { color: var(--yellow); }
+.syn-fn { color: var(--info, #62b6ea); }
+.syn-type { color: var(--accent); }
+
+/* ---------- session filter (sessions.js) ---------- */
+.search-input { flex: 1; min-width: 130px; padding: 5px 8px; font-size: 12px;
+    background: var(--bg-0); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--fg-0); }
+.search-input:focus { border-color: var(--accent); }
+
+/* ---------- frontend build badge + bottom status bar ---------- */
+.build-badge { font-family: var(--mono); font-size: 10px; color: var(--fg-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 1px 7px;
+    white-space: nowrap; }
+#statusbar { display: flex; align-items: center; gap: 16px; height: 24px;
+    flex: none; padding: 0 12px; background: var(--bg-1);
+    border-top: 1px solid var(--border); font-size: 11px; }
+.sb-item { font-family: var(--mono); color: var(--fg-1); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+#sb-connection { color: var(--fg-2); }

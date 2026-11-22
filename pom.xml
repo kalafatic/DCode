@@ -23,6 +23,7 @@
     <modules>
         <module>targetplatform/eu.kalafatic.dcode.target</module>
         <module>plugins/eu.kalafatic.dcode.core</module>
+        <module>plugins/org.slf4j.nop</module>
         <module>plugins/eu.kalafatic.dcode.repositories</module>
         <module>plugins/eu.kalafatic.dcode.config</module>
         <module>plugins/eu.kalafatic.dcode.client</module>

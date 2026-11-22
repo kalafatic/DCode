@@ -53,6 +53,18 @@
     </div>
 
     <div class="card">
+      <h4>Appearance</h4>
+      <div class="row"><label>Theme</label>
+        <select id="themeSelect">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+      <div class="muted">Applied immediately and persisted in this browser; shared with the
+        Inference page and restored after a restart.</div>
+    </div>
+
+    <div class="card">
       <h4>Runtimes</h4>
       <table id="runtimeTable"><tbody><tr><td class="muted">loading…</td></tr></tbody></table>
     </div>
@@ -133,6 +145,16 @@ $("themeBtn").onclick = () => {
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem("dcode.theme", next); } catch (e) { /* ignore */ }
 };
+const themeSelect = $("themeSelect");
+if (themeSelect) {
+  let currentTheme = "dark";
+  try { currentTheme = localStorage.getItem("dcode.theme") || "dark"; } catch (e) { /* ignore */ }
+  themeSelect.value = currentTheme === "light" ? "light" : "dark";
+  themeSelect.onchange = () => {
+    document.documentElement.dataset.theme = themeSelect.value;
+    try { localStorage.setItem("dcode.theme", themeSelect.value); } catch (e) { /* ignore */ }
+  };
+}
 /* WebKit-safe token modal (window.prompt is unreliable in the SWT Browser). */
 function askToken(current) {
   return new Promise((resolve) => {

@@ -38,6 +38,10 @@
       <feature id="org.eclipse.e4.rcp"/>
    </features>
 
+   <plugins>
+      <plugin id="org.eclipse.ui.themes"/>
+   </plugins>
+
    <configurations>
       <plugin id="org.apache.felix.scr" autoStart="true" startLevel="2"/>
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="4"/>
@@ -54,4 +58,8 @@
       <plugin id="eu.kalafatic.dcode.ui" autoStart="true" startLevel="4"/>
       <plugin id="org.eclipse.equinox.security" autoStart="true" startLevel="4"/>
    </configurations>
+
+   <properties>
+      <property name="cssTheme" value="org.eclipse.e4.ui.css.theme.e4_dark"/>
+   </properties>
 </product>

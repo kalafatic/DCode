@@ -19,6 +19,7 @@
         <span id="top-runtime" class="top-item">no default runtime</span>
     </div>
     <div class="topbar-right">
+        <span id="frontend-build" class="build-badge" title="Frontend revision">web r4</span>
         <span id="connection-status" class="conn conn-disconnected" title="Server connection">● offline</span>
         <button id="btn-conn" class="btn btn-small" title="Connection state and diagnostics">connection</button>
         <button id="btn-auth" class="btn btn-small" title="Set server token">auth</button>
@@ -30,13 +31,22 @@
 <div id="main">
     <aside id="left-panel">
         <nav id="left-nav">
-            <button class="nav-btn active" data-view="workspace">Workspace</button>
-            <button class="nav-btn" data-view="sessions">Sessions</button>
-            <button class="nav-btn" data-view="runtimes">Runtimes</button>
-            <button class="nav-btn" data-view="models">Models</button>
-            <button class="nav-btn" data-view="modelmanager">Model Manager</button>
-            <button class="nav-btn" data-view="tools">Java Tools</button>
-            <button class="nav-btn" data-view="activity">Activity</button>
+            <div class="nav-group-label">Workspace</div>
+            <div class="nav-group">
+                <button class="nav-btn active" data-view="workspace">Workspace</button>
+                <button class="nav-btn" data-view="sessions">Sessions</button>
+            </div>
+            <div class="nav-group-label">Runtime</div>
+            <div class="nav-group">
+                <button class="nav-btn" data-view="runtimes">Runtimes</button>
+                <button class="nav-btn" data-view="models">Models</button>
+                <button class="nav-btn" data-view="modelmanager">Model Manager</button>
+            </div>
+            <div class="nav-group-label">Tools</div>
+            <div class="nav-group">
+                <button class="nav-btn" data-view="tools">Java Tools</button>
+                <button class="nav-btn" data-view="activity">Activity</button>
+            </div>
         </nav>
         <div id="left-content"></div>
     </aside>
@@ -77,11 +87,20 @@
     </div>
 </footer>
 
+<footer id="statusbar">
+    <span id="sb-application" class="sb-item">DCODE</span>
+    <span id="sb-version" class="sb-item">—</span>
+    <span id="sb-connection" class="sb-item">offline</span>
+    <span class="spacer"></span>
+    <span id="sb-build" class="sb-item">web r4</span>
+</footer>
+
 <div id="modal-root"></div>
 <div id="context-menu" class="context-menu hidden"></div>
 
 <script src="js/api.js"></script>
 <script src="js/sse.js"></script>
+<script src="js/markdown.js"></script>
 <script src="js/diff.js"></script>
 <script src="js/explorer.js"></script>
 <script src="js/editor.js"></script>

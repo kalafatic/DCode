@@ -144,3 +144,35 @@ authoritative is stored in the browser.
   `sessions`/`status`/`stop` in a second process now observe the real running
   server even after fallback allocation (previously they hardcoded 58080 and
   failed with "failed: null").
+
+### 7.2 Addendum 2026-11-22 (c) — Frontend round and RCP runtime fixes
+
+- New `web/js/markdown.js` (window.DCodeMarkdown): XSS-safe markdown renderer with a
+  dependency-free syntax highlighter and copy controls. The **direct chat** now
+  renders assistant answers as markdown with highlighted code blocks, per-message and
+  per-code-block copy, streaming updates included.
+- Sessions view gains a **search filter** (title/workspace/id); Settings gains an
+  **Appearance** card (theme select, shared `dcode.theme`).
+- **Persistence bundle slf4j fix**: the bundle embedded its own `slf4j-api-1.7.36`
+  (legacy API → "StaticLoggerBinder" warning); it now imports `org.slf4j` from the
+  shared slf4j.api bundle. The legacy warning is gone (0 SLF4J lines in headless
+  runs).
+- **RCP runtime fixes** (from the user's launch log): `org.eclipse.ui.themes` added
+  to the product (resolves `Theme 'org.eclipse.e4.ui.css.theme.e4_default' not
+  found`); the product requests the `e4_dark` CSS theme; `org.slf4j.nop` fragment
+  provides the SLF4J NOP provider; the m2e circular-reference entries come from the
+  development IDE (no m2e bundles in the product) and need no product change.
+
+### 7.3 Addendum 2026-11-22 (d) — Unified frontend delivery architecture
+
+- Root cause of "UI unchanged": PDE workspace launches resolve the frontend from
+  the bundle output folder, which never received the `web/` resources (only Tycho
+  packaged them into product jars). `web/` is now a build-input source folder
+  (`source.web/ = web/` + `.classpath` entry) so the standard builder copies it to
+  the runtime classpath in every mode; the embedded server keeps serving from the
+  bundle classpath only — no mode-specific code paths.
+- New `FrontendDeliveryTest` asserts bundle-vs-source equality (stale packaging
+  fails the build) and the `web-20261122-r4` build constant consistency between
+  `js/api.js` and `DCodeApi.FRONTEND_VERSION` (`/api/v1/health` → `frontendVersion`).
+- The build badge in the topbar and the bottom status bar expose the revision at
+  runtime in the UI itself.

@@ -39,6 +39,12 @@ window.DCodeApp = (function () {
         wireConsoleControls();
         renderView('workspace');
         applyAuth();
+        const build = document.getElementById('frontend-build');
+        if (build) { build.textContent = window.DCODE_FRONTEND_BUILD; }
+        const sbBuild = document.getElementById('sb-build');
+        if (sbBuild) { sbBuild.textContent = window.DCODE_FRONTEND_BUILD; }
+        console.log('DCode frontend build ' + window.DCODE_FRONTEND_BUILD
+            + ' (' + location.origin + ')');
         probeBackend();
     }
 
@@ -62,6 +68,14 @@ window.DCodeApp = (function () {
         el.className = entry[0];
         el.textContent = entry[1];
         el.title = diagnostic || newState;
+        const sb = document.getElementById('sb-connection');
+        if (sb) { sb.textContent = entry[1].replace('\u25CF ', ''); }
+        if (identity) {
+            const sbApp = document.getElementById('sb-application');
+            const sbVer = document.getElementById('sb-version');
+            if (sbApp) { sbApp.textContent = identity.application || 'DCODE'; }
+            if (sbVer) { sbVer.textContent = 'v' + (identity.version || '—'); }
+        }
         renderConnectionBanner();
     }
 

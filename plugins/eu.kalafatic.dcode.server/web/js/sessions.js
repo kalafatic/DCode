@@ -17,22 +17,35 @@ window.DCodeSessions = (function () {
         refresh.textContent = 'Refresh';
         refresh.onclick = () => render(container);
         toolbar.appendChild(refresh);
+        const search = document.createElement('input');
+        search.type = 'search';
+        search.className = 'search-input';
+        search.placeholder = 'Filter sessions…';
+        search.oninput = () => load(list, search.value);
+        toolbar.appendChild(search);
         container.appendChild(toolbar);
 
         const list = document.createElement('ul');
         list.className = 'list';
         container.appendChild(list);
-        load(list);
+        load(list, '');
     }
 
-    async function load(list) {
+    async function load(list, filter) {
         list.innerHTML = '';
+        const needle = String(filter || '').toLowerCase();
         try {
             const workspaces = await DCodeApi.get('/api/v1/workspaces');
             for (const workspace of workspaces) {
                 const sessions = await DCodeApi.get('/api/v1/sessions?workspaceId='
                     + encodeURIComponent(workspace.id));
                 for (const session of sessions) {
+                    const titleText = session.title || session.id;
+                    if (needle && !titleText.toLowerCase().includes(needle)
+                            && !String(workspace.name).toLowerCase().includes(needle)
+                            && !String(session.id).toLowerCase().includes(needle)) {
+                        continue;
+                    }
                     const li = document.createElement('li');
                     li.className = 'list-item';
                     const title = document.createElement('div');

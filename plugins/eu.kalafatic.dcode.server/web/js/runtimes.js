@@ -445,6 +445,7 @@ window.DCodeRuntimes = (function () {
         const transcript = document.createElement('div');
         transcript.className = 'direct-chat-transcript';
         container.appendChild(transcript);
+        DCodeMarkdown.wireCodeCopy(transcript);
 
         const inputRow = document.createElement('div');
         inputRow.className = 'row';
@@ -522,7 +523,31 @@ window.DCodeRuntimes = (function () {
         function append(role, text, extraClass) {
             const line = document.createElement('div');
             line.className = 'log-line log-' + role + (extraClass ? ' ' + extraClass : '');
-            line.appendChild(document.createTextNode(text));
+            if (role === 'assistant' && text.trim()) {
+                const head = document.createElement('div');
+                head.className = 'msg-head';
+                const who = document.createElement('span');
+                who.className = 'who';
+                who.textContent = role;
+                head.appendChild(who);
+                const copy = document.createElement('button');
+                copy.className = 'msg-action';
+                copy.textContent = 'copy';
+                copy.onclick = () => {
+                    DCodeMarkdown.copyToClipboard(String(text)).then(() => {
+                        copy.textContent = 'copied';
+                        setTimeout(() => { copy.textContent = 'copy'; }, 1400);
+                    }).catch(() => { /* clipboard unavailable */ });
+                };
+                head.appendChild(copy);
+                line.appendChild(head);
+                const body = document.createElement('div');
+                body.className = 'chat-body';
+                body.innerHTML = DCodeMarkdown.renderMarkdown(text);
+                line.appendChild(body);
+            } else {
+                line.appendChild(document.createTextNode(text));
+            }
             transcript.appendChild(line);
             transcript.scrollTop = transcript.scrollHeight;
         }
@@ -536,7 +561,27 @@ window.DCodeRuntimes = (function () {
             append('user', '\n▶ ' + prompt);
             history.push({ role: 'user', content: prompt });
             const assistantLine = document.createElement('div');
-            assistantLine.className = 'log-line log-assistant direct-chat-stream';
+            assistantLine.className = 'log-line log-assistant';
+            const assistantHead = document.createElement('div');
+            assistantHead.className = 'msg-head';
+            const assistantWho = document.createElement('span');
+            assistantWho.className = 'who';
+            assistantWho.textContent = 'assistant';
+            const assistantCopy = document.createElement('button');
+            assistantCopy.className = 'msg-action';
+            assistantCopy.textContent = 'copy';
+            assistantCopy.onclick = () => {
+                DCodeMarkdown.copyToClipboard(full).then(() => {
+                    assistantCopy.textContent = 'copied';
+                    setTimeout(() => { assistantCopy.textContent = 'copy'; }, 1400);
+                }).catch(() => { /* clipboard unavailable */ });
+            };
+            assistantHead.appendChild(assistantWho);
+            assistantHead.appendChild(assistantCopy);
+            assistantLine.appendChild(assistantHead);
+            const assistantBody = document.createElement('div');
+            assistantBody.className = 'chat-body direct-chat-stream';
+            assistantLine.appendChild(assistantBody);
             transcript.appendChild(assistantLine);
             transcript.scrollTop = transcript.scrollHeight;
 
@@ -603,24 +648,27 @@ window.DCodeRuntimes = (function () {
                     } else if (event === 'done') {
                         finished = true;
                         history.push({ role: 'assistant', content: payload.content || '' });
-                        assistantLine.appendChild(document.createTextNode(
-                            payload.cancelled ? ' [cancelled]' : ''));
+                        assistantBody.innerHTML = DCodeMarkdown.renderMarkdown(full);
+                        if (payload.cancelled) {
+                            assistantBody.appendChild(document.createTextNode(
+                                ' [cancelled]'));
+                        }
                         endStream();
                     } else if (event === 'error') {
                         finished = true;
-                        assistantLine.appendChild(document.createTextNode(
+                        assistantBody.appendChild(document.createTextNode(
                             ' ⚠ ' + (payload.message || 'failed')));
                         endStream();
                     } else if (typeof payload.token === 'string') {
                         full += payload.token;
-                        assistantLine.appendChild(document.createTextNode(payload.token));
+                        assistantBody.innerHTML = DCodeMarkdown.renderMarkdown(full);
                         transcript.scrollTop = transcript.scrollHeight;
                     }
                 }
                 return pump();
             }).catch((e) => {
                 if (e.name !== 'AbortError') {
-                    assistantLine.appendChild(document.createTextNode(' ⚠ ' + e.message));
+                    assistantBody.appendChild(document.createTextNode(' ⚠ ' + e.message));
                 }
                 endStream();
             });
