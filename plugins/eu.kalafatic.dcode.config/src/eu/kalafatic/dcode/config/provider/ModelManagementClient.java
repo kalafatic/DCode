@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -62,7 +63,34 @@ public final class ModelManagementClient {
             return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         }
         String configured = System.getProperty("dcode.enr.endpoint");
-        return configured != null && !configured.isBlank() ? configured : DEFAULT_BASE_URL;
+        if (configured != null && !configured.isBlank()) {
+            return configured.endsWith("/")
+                    ? configured.substring(0, configured.length() - 1) : configured;
+        }
+        // Family convention (mirror of RuntimeManager.detectEnrEndpoint): when no
+        // explicit endpoint is configured, probe the well-known ENR endpoints —
+        // standalone 8111, EVO-embedded 28780 — and use a reachable one. Local
+        // probes fail fast (connection refused), so startup is never delayed.
+        for (String candidate : List.of("http://127.0.0.1:8111",
+                "http://127.0.0.1:28780")) {
+            if (enrAnswers(candidate)) {
+                return candidate;
+            }
+        }
+        return DEFAULT_BASE_URL;
+    }
+
+    private static boolean enrAnswers(String endpoint) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create(endpoint + "/api/v1/health"))
+                    .timeout(Duration.ofSeconds(3)).GET().build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // ------------------------------------------------------------ operations

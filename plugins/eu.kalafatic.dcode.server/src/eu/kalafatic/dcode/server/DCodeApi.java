@@ -177,6 +177,30 @@ public final class DCodeApi {
         this.harnessSupplier = Objects.requireNonNull(harnessSupplier, "harnessSupplier");
         this.agentSupplier = Objects.requireNonNull(agentSupplier, "agentSupplier");
         this.profileSupplier = Objects.requireNonNull(profileSupplier, "profileSupplier");
+        this.modelManagementClient = new ModelManagementClient(
+                resolveModelManagementEndpoint(), null);
+    }
+
+    /**
+     * Endpoint for the shared ENR model management service: the explicit
+     * {@code dcode.enr.endpoint} system property, then the registered ENR
+     * runtime (kept in sync with live endpoint detection by the
+     * RuntimeManager), then the client default probing.
+     */
+    private String resolveModelManagementEndpoint() {
+        String configured = System.getProperty("dcode.enr.endpoint");
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+        if (runtimes != null) {
+            var enr = runtimes.info(eu.kalafatic.dcode.config.provider.EnrProvider
+                    .DEFAULT_PROVIDER_ID);
+            if (enr.isPresent() && enr.get().endpoint() != null
+                    && !enr.get().endpoint().isBlank()) {
+                return enr.get().endpoint();
+            }
+        }
+        return null;
     }
 
     /** Authorization: bearer token required only when a server token is configured. */
@@ -1171,7 +1195,7 @@ public final class DCodeApi {
 
     // ---- unified model management (shared ENR infrastructure) ----
 
-    private final ModelManagementClient modelManagementClient = new ModelManagementClient();
+    private final ModelManagementClient modelManagementClient;
 
     /**
      * Parses a raw JSON document returned by the shared model management

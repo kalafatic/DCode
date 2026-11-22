@@ -275,8 +275,9 @@ public final class SessionExecutor {
                         .filter(runtime -> candidates.stream().noneMatch(
                                 existing -> existing.id().equals(runtime.id())))
                         .forEach(candidates::add);
-                // Pass 1: a model that can actually run the coding-agent protocol
-                // (registered default, or unknown/large enough context window).
+                // Pass 1a (all runtimes): a model with a KNOWN context window large
+                // enough for the coding-agent protocol — real coding models win over
+                // toy/unknown-context models on any runtime.
                 for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
                     List<ModelDefinition> models;
                     try {
@@ -287,12 +288,30 @@ public final class SessionExecutor {
                     String registeredDefault = candidates.get(0).id().equals(runtime.id())
                             ? runtimes.defaultModel().orElse("") : "";
                     ModelSelection selection = pickModel(runtime.id(), models,
-                            registeredDefault, true);
+                            registeredDefault, ContextPreference.KNOWN_USABLE);
                     if (selection != null) {
                         DCodeLog.info("execution", "No configured model; using "
                                 + selection.modelId() + " on runtime "
                                 + runtime.id());
                         return selection;
+                    }
+                }
+                // Pass 1b (all runtimes): models with an unknown context window are
+                // still preferred over known-tiny ones; only reached when no runtime
+                // publishes a known usable model.
+                for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
+                    try {
+                        ModelSelection selection = pickModel(runtime.id(),
+                                runtimes.listModels(runtime.id()), "",
+                                ContextPreference.UNKNOWN_CONTEXT);
+                        if (selection != null) {
+                            DCodeLog.warn("execution", "No model with a known usable "
+                                    + "context window; using " + selection.modelId()
+                                    + " on runtime " + runtime.id());
+                            return selection;
+                        }
+                    } catch (RuntimeException e) {
+                        // discovery failed on this runtime: try the next
                     }
                 }
                 // Pass 2: nothing usable found — take any available model so the
@@ -301,7 +320,8 @@ public final class SessionExecutor {
                 for (eu.kalafatic.dcode.config.runtime.RuntimeInfo runtime : candidates) {
                     try {
                         ModelSelection selection = pickModel(runtime.id(),
-                                runtimes.listModels(runtime.id()), "", false);
+                                runtimes.listModels(runtime.id()), "",
+                                ContextPreference.ANY);
                         if (selection != null) {
                             DCodeLog.warn("execution", "Only a minimal-context model is "
                                     + "available (" + selection.modelId() + " on "
@@ -319,13 +339,24 @@ public final class SessionExecutor {
     }
 
     /**
+     * Context-window preference used when no model is configured anywhere:
+     * {@link #KNOWN_USABLE} requires a known context window >= 4096 tokens,
+     * {@link #UNKNOWN_CONTEXT} accepts unknown context windows (the model does
+     * not publish its size), {@link #ANY} accepts every available model.
+     */
+    private enum ContextPreference {
+        KNOWN_USABLE,
+        UNKNOWN_CONTEXT,
+        ANY
+    }
+
+    /**
      * Picks a model for an unconfigured execution: the registered runtime default
-     * model, then the first available model with an unknown or >= 4096 token context
-     * window. With {@code usableOnly=false} any available model qualifies.
+     * model, then the first available model matching the given context preference.
      */
     private static ModelSelection pickModel(String providerId, List<ModelDefinition> models,
                                             String registeredDefault,
-                                            boolean usableOnly) {
+                                            ContextPreference preference) {
         if (!registeredDefault.isBlank()) {
             boolean defaultPresent = models.stream()
                     .anyMatch(model -> model.id().equals(registeredDefault));
@@ -335,8 +366,11 @@ public final class SessionExecutor {
         }
         java.util.Optional<ModelDefinition> usable = models.stream()
                 .filter(ModelDefinition::available)
-                .filter(model -> !usableOnly || model.contextWindowTokens() <= 0
-                        || model.contextWindowTokens() >= 4096)
+                .filter(model -> switch (preference) {
+                    case KNOWN_USABLE -> model.contextWindowTokens() >= 4096;
+                    case UNKNOWN_CONTEXT -> model.contextWindowTokens() <= 0;
+                    case ANY -> true;
+                })
                 .findFirst();
         return usable.map(model -> new ModelSelection(providerId, model.id()))
                 .orElse(null);
