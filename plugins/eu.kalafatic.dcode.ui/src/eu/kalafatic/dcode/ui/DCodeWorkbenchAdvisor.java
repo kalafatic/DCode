@@ -1,6 +1,4 @@
 package eu.kalafatic.dcode.ui;
-
-import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.ui.application.IWorkbenchConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchAdvisor;
@@ -25,14 +23,6 @@ public final class DCodeWorkbenchAdvisor extends WorkbenchAdvisor {
     @Override
     public void initialize(IWorkbenchConfigurer configurer) {
         super.initialize(configurer);
-        // Open the Eclipse resources workspace before the workbench runs so that
-        // platform services depending on it (JDT core) can activate cleanly.
-        try {
-            ResourcesPlugin.getWorkspace();
-        } catch (Throwable ignored) {
-            // Runtimes without the resources bundle keep working; JDT tooling then
-            // reports itself unavailable instead of crashing the workbench.
-        }
     }
 
     @Override
