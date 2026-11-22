@@ -67,7 +67,7 @@ cd product/eu.kalafatic.dcode.product/target/products/eu.kalafatic.dcode.server.
 ```
 
 Verified: the headless runtime starts core services, the native coding harness, and the
-DCode HTTP API on `127.0.0.1:48080` (allocated port). The process runs until stopped.
+DCode HTTP API on `127.0.0.1:58080` (allocated port; family 58xxx block — DStudio owns 48xxx). The process runs until stopped.
 
 ## Configuration fix applied
 

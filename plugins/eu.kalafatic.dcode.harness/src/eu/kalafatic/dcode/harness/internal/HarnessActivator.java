@@ -3,6 +3,7 @@ package eu.kalafatic.dcode.harness.internal;
 import eu.kalafatic.dcode.config.git.GitAccountManager;
 import eu.kalafatic.dcode.config.provider.ProviderRegistry;
 import eu.kalafatic.dcode.config.routing.ModelRouter;
+import eu.kalafatic.dcode.core.config.ConfigurationService;
 import eu.kalafatic.dcode.core.event.EventBus;
 import eu.kalafatic.dcode.core.lifecycle.DCodeLifecycle;
 import eu.kalafatic.dcode.core.lifecycle.LifecycleStage;
@@ -67,7 +68,8 @@ public final class HarnessActivator implements BundleActivator {
         this.context = context;
         gate = new ServiceAvailabilityGate(context, new Class<?>[]{
                 EventBus.class, DCodeLifecycle.class, WorkspaceService.class,
-                RepositoryOperations.class, ProviderRegistry.class, ModelRouter.class},
+                RepositoryOperations.class, ProviderRegistry.class, ModelRouter.class,
+                ConfigurationService.class},
                 this::wire);
         gate.runIfAvailable();
     }
@@ -82,6 +84,8 @@ public final class HarnessActivator implements BundleActivator {
                 context.getServiceReference(ProviderRegistry.class));
         ModelRouter modelRouter = context.getService(
                 context.getServiceReference(ModelRouter.class));
+        ConfigurationService configurationService = context.getService(
+                context.getServiceReference(ConfigurationService.class));
         ServiceReference<GitAccountManager> gitRef =
                 context.getServiceReference(GitAccountManager.class);
         GitAccountManager gitAccounts = gitRef != null ? context.getService(gitRef) : null;
@@ -150,7 +154,8 @@ public final class HarnessActivator implements BundleActivator {
                 toolEngine, null);
         harnessRegistryRegistration = context.registerService(
                 eu.kalafatic.dcode.harness.registry.HarnessRegistry.class,
-                new eu.kalafatic.dcode.harness.registry.DefaultHarnessRegistry(), null);
+                new eu.kalafatic.dcode.harness.registry.DefaultHarnessRegistry(
+                        configurationService.getConfiguration().dataDir()), null);
 
         lifecycle.registerAction(LifecycleStage.HARNESS, "harness-services",
                 new DCodeLifecycle.LifecycleAction() {

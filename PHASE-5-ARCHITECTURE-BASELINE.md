@@ -253,10 +253,10 @@ clients may observe concurrently.
 
 ### 4.5 Port conventions
 
-Family convention is tens-digit-per-product: EVO 28xxx, TRYST 38xxx. **Proposal for DCode:
-48xxx** — HTTP 48080 (fallback range 48080–48580), management 48380, auxiliary 48680.
-(Proposal only; no previous decision conflicts with it. DStudio would follow 58xxx in its own
-phase.)
+Family convention is tens-digit-per-product: EVO 28xxx, TRYST 38xxx, DStudio 48xxx
+(TEIP 48080, diagnostics 48180), DCode 58xxx. **Decision (2026-11): DCode owns the 58xxx
+block** — HTTP 58080 (fallback range 58080–58580), management 58380, auxiliary 58680 —
+so both products run simultaneously without port collision.
 
 ---
 

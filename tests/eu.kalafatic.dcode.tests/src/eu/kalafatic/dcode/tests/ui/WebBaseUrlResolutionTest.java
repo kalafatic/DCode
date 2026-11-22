@@ -45,8 +45,8 @@ class WebBaseUrlResolutionTest {
         RuntimeConnection connection = RuntimeConnection.instance();
         seed(connection, ConnectionState.READY,
                 new BackendIdentity("DCODE", "2.6.11", true, "UP", Map.of()),
-                new DCodeApiClient("http://127.0.0.1:48080"));
-        assertEquals("http://127.0.0.1:48080", connection.webBaseUrl());
+                new DCodeApiClient("http://127.0.0.1:58080"));
+        assertEquals("http://127.0.0.1:58080", connection.webBaseUrl());
     }
 
     @Test

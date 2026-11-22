@@ -104,8 +104,13 @@ off the UI thread; coalesced UI updates avoid refresh storms.
   wait with a Reload action) — and **Settings** — the desktop-specific configuration
   page (backend defaults/enablement via the existing API bridge). No second frontend
   exists; the server bundle is activated early (`ServerRuntimeBoot`, background,
-  layering-safe) so the WebServerControl service and the web application are ready
-  when the workbench opens.
+  layering-safe). The boot hook self-starts every DCode platform bundle
+  (core → config → repositories → persistence → harness → java.tooling → server)
+  through `Platform.getBundle(name)` + `start()` + activator-class load, so the
+  OSGi service chain and the web application come up regardless of the launch
+  configuration's start levels (product auto-start or PDE development launches in
+  which the ui bundle only runs RESOLVED); the `WebServerControl` service and the
+  web application are ready when the workbench opens.
 - Full JDT `CompilationUnitEditor` embedding (content assist, quick fixes) is a
   documented deferred enhancement: in local mode the shared `JavaWorkspaceManager`
   already provides `IJavaProject`s in the same runtime, so the integration point is

@@ -239,7 +239,7 @@ public final class DCodeApi {
                 return payload(handleInference(method, parts, session));
             }
             if (parts.length >= 2 && parts[1].equals("harnesses")) {
-                return payload(requireGet(method, harnesses()));
+                return payload(handleHarnesses(method, parts, session));
             }
             if (parts.length >= 2 && parts[1].equals("ports")) {
                 return payload(requireGet(method, ports()));
@@ -1918,24 +1918,51 @@ public final class DCodeApi {
         return result;
     }
 
-    private String harnesses() {        eu.kalafatic.dcode.harness.registry.HarnessRegistry registry =
+    private String handleHarnesses(String method, String[] parts,
+                                   NanoHTTPD.IHTTPSession session) {
+        eu.kalafatic.dcode.harness.registry.HarnessRegistry registry =
                 harnessSupplier.get();
         if (registry == null) {
             registry = new eu.kalafatic.dcode.harness.registry.DefaultHarnessRegistry();
         }
-        ArrayNode array = mapper.createArrayNode();
-        for (var harness : registry.harnesses()) {
-            ObjectNode node = array.addObject();
-            node.put("id", harness.id());
-            node.put("name", harness.name());
-            node.put("description", harness.description());
-            node.put("integrated", harness.integrated());
-            node.put("available", harness.available());
-            node.put("usable", harness.usable());
-            ArrayNode capabilities = node.putArray("capabilities");
-            harness.capabilities().forEach(capabilities::add);
+        if (parts.length == 2 && method.equals("GET")) {
+            ArrayNode array = mapper.createArrayNode();
+            String selected = registry.defaultHarnessId().orElse("");
+            for (var harness : registry.harnesses()) {
+                array.add(harnessNode(harness, registry, selected));
+            }
+            return ok(array);
         }
-        return ok(array);
+        if (parts.length == 4 && method.equals("POST")) {
+            switch (parts[3]) {
+                case "default" -> registry.selectDefaultHarness(parts[2]);
+                case "enable" -> registry.setHarnessEnabled(parts[2], true);
+                case "disable" -> registry.setHarnessEnabled(parts[2], false);
+                default -> throw new NotFoundException("Unknown route segment");
+            }
+            return ok(harnessNode(registry.find(parts[2]).orElseThrow(), registry,
+                    registry.defaultHarnessId().orElse("")));
+        }
+        throw new NotFoundException("Unknown route segment");
+    }
+
+    private ObjectNode harnessNode(
+            eu.kalafatic.dcode.harness.registry.HarnessDescriptor harness,
+            eu.kalafatic.dcode.harness.registry.HarnessRegistry registry,
+            String selected) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("id", harness.id());
+        node.put("name", harness.name());
+        node.put("description", harness.description());
+        node.put("integrated", harness.integrated());
+        node.put("available", harness.available());
+        boolean enabled = registry.isEnabled(harness.id());
+        node.put("enabled", enabled);
+        node.put("usable", harness.usable() && enabled);
+        node.put("default", harness.id().equals(selected));
+        ArrayNode capabilities = node.putArray("capabilities");
+        harness.capabilities().forEach(capabilities::add);
+        return node;
     }
 
     // ---- helpers ----

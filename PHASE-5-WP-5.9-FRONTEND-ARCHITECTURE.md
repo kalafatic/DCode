@@ -108,3 +108,39 @@ authoritative is stored in the browser.
   engine.
 - Tool results render server-returned structured JSON; raw output remains available
   for debugging.
+
+## 7. Addendum 2026-11-22 — Settings/Help unification and port migration
+
+- **settings.html now shares the main SPA's assets**: it links `css/app.css` (UPM
+  design tokens, dark default, `[data-theme="light"]`) plus the new
+  `css/settings.css` (card/kv/badge/switch/table components); its former dark-only
+  inline palette is removed. A `theme` button toggles the same `dcode.theme`
+  localStorage key as the main page (immediate, persisted, no restart).
+- **One API client, one token**: settings.html uses `js/api.js` (`DCodeApi`)
+  instead of its own fetch helper; the bearer token is stored under
+  `dcode.web.token` in localStorage (read at load, written by `setToken`) so a
+  single sign-in covers both pages of the same browser — mirroring the DStudio web
+  client. `window.prompt` is replaced by a WebKit-safe token modal.
+- **help.html** is theme-aware (`data-theme="dark"` default, UPM tokens with light
+  overrides) and gains a theme toggle.
+- **Port migration**: DCode now owns the 58xxx family block (HTTP 58080,
+  management 58380, aux 58680); DStudio owns 48xxx. The migration touches
+  `DCodePorts`, `RuntimeScanner.DEFAULT_ENDPOINTS`, `RuntimeConnection`
+  fallback, `ConnectionDialog` and `ScanRuntimesDialog`; docs updated
+  (BUILD_AND_LAUNCH.md, TESTING_GUIDE, AGENTS.md, PHASE-5 baseline §4.5).
+  Live-verified: DCode headless binds 58080 with `/api/v1/ports` reporting the
+  new expected values.
+
+### 7.1 Addendum 2026-11-22 (b) — port lifecycle and CLI port resolution
+
+- `ServerActivator` persists the actually bound HTTP port in
+  `dcode-config.json` (`CoreConfiguration.withHttpPort`) whenever it was
+  allocated or taken by deterministic fallback, so the next start reuses it.
+  A configured-but-occupied port falls back inside the 58xxx block (58080 +
+  500) with a warning; nothing is ever silently rebound to an unrelated port.
+- `HeadlessApplication` CLI commands resolve the target port through the
+  authoritative chain: `dcode.server.port` (published by the server bundle) →
+  `-Ddcode.port` override → persisted `httpPort` → `DCodePorts.HTTP`.
+  `sessions`/`status`/`stop` in a second process now observe the real running
+  server even after fallback allocation (previously they hardcoded 58080 and
+  failed with "failed: null").

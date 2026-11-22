@@ -25,7 +25,10 @@ Status key: **PASS** (verified), **PARTIAL** (implemented, partially verified),
 - **Harness selection**: harness catalog (`/api/v1/harnesses`) with honest
   availability/integration status; only usable harnesses execute tasks.
 - **Port standardization**: family = `8x80 + offset` (EVO +20000/28xxx, TRYST
-  +30000/38xxx, DCode +40000/48xxx, DStudio +50000/58xxx).
+  +30000/38xxx, DStudio +40000/48xxx, DCode +50000/58xxx).
+  *(Correction 2026-11-22: the convention is the reverse of what this round
+  implemented — DStudio owns 48xxx (TEIP 48080), DCode owns 58xxx (58080); DCode
+  migrated to 58xxx afterwards.)*
   - **DStudio migrated to 58xxx**: TEIP 58080, diagnostics 58180, DCode adapter
     endpoint now `http://localhost:48080`, conflict dialog text updated, and a
     persisted-config migration remaps legacy 48080/48180 values on load

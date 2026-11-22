@@ -304,6 +304,39 @@ class DirectInferenceApiTest {
     }
 
     @Test
+    void harnessSettingsOverHttp() throws Exception {
+        JsonNode list = request("GET", "/api/v1/harnesses", null).body();
+        JsonNode dcode = null;
+        for (JsonNode harness : list) {
+            if (harness.path("id").asText("").equals("dcode")) {
+                dcode = harness;
+            }
+        }
+        assertTrue(dcode != null);
+        assertTrue(dcode.path("default").asBoolean());
+        assertTrue(dcode.path("enabled").asBoolean());
+        assertTrue(dcode.path("usable").asBoolean());
+
+        JsonNode defaulted = request("POST", "/api/v1/harnesses/opencode/default",
+                "{}").body();
+        assertTrue(defaulted.path("default").asBoolean());
+
+        JsonNode disabled = request("POST", "/api/v1/harnesses/opencode/disable",
+                "{}").body();
+        assertFalse(disabled.path("enabled").asBoolean());
+
+        JsonNode enabled = request("POST", "/api/v1/harnesses/opencode/enable",
+                "{}").body();
+        assertTrue(enabled.path("enabled").asBoolean());
+
+        ApiResponse missing = request("POST", "/api/v1/harnesses/nope/default", "{}");
+        assertEquals(400, missing.status());
+
+        // restore the native default
+        request("POST", "/api/v1/harnesses/dcode/default", "{}");
+    }
+
+    @Test
     void agentCrudAndDefaultOverHttp() throws Exception {
         JsonNode agents = request("GET", "/api/v1/agents", null).body();
         assertEquals(3, agents.size());
@@ -355,7 +388,7 @@ class DirectInferenceApiTest {
             }
         }
         assertTrue(http != null);
-        assertEquals(48080, http.path("expectedPort").asInt());
+        assertEquals(58080, http.path("expectedPort").asInt());
         assertTrue(http.path("actualPort").asInt() > 0, "actual port must be reported");
         assertEquals("LISTENING", http.path("state").asText());
     }

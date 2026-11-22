@@ -166,10 +166,12 @@ class WebUiIntegrationTest {
         assertEquals(200, unknown.status());
         assertTrue(unknown.body().contains("<html"));
 
-        // traversal attempts are neutralized
+        // Traversal attempts are neutralized: the sanitized request must never
+        // escape the web root. The neutralized path is an absent explicit file,
+        // which the server answers with 404 (explicit files never fall back to the
+        // SPA shell, so a missing settings page cannot silently render the Web app).
         ApiResponse traversal = request("GET", "/../pom.xml", null, null);
-        assertEquals(200, traversal.status());
-        assertTrue(traversal.body().contains("<html"));
+        assertEquals(404, traversal.status());
     }
 
     @Test

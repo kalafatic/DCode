@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -56,6 +56,12 @@
   .muted { color: var(--muted); }
   ul { padding-left: 22px; }
   li { margin: 4px 0; }
+  button {
+    font: inherit; font-size: 12px; color: var(--fg); background: var(--bg-3);
+    border: 1px solid var(--border); border-radius: 5px; padding: 3px 10px;
+    cursor: pointer; margin-left: auto;
+  }
+  button:hover { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -63,6 +69,7 @@
 <header>
   <div class="brand">◈ <span>DCode</span> Help</div>
   <div class="sub">Darwin Code — native AI coding harness</div>
+  <button id="theme-btn" title="Toggle light/dark theme">theme</button>
 </header>
 
 <nav class="toc">
@@ -242,5 +249,23 @@ help [topic]         this help, or the help of one command
 </section>
 
 </main>
+<script>
+"use strict";
+(function () {
+  var KEY = "dcode.theme";
+  function apply() {
+    var theme = "dark";
+    try { theme = localStorage.getItem(KEY) || "dark"; } catch (e) { /* ignore */ }
+    document.documentElement.dataset.theme = theme;
+  }
+  apply();
+  var button = document.getElementById("theme-btn");
+  button.addEventListener("click", function () {
+    var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem(KEY, next); } catch (e) { /* ignore */ }
+  });
+})();
+</script>
 </body>
 </html>

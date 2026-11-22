@@ -54,10 +54,10 @@ cd product/eu.kalafatic.dcode.product/target/products/eu.kalafatic.dcode.server.
 nohup ./dcode-headless -vm /usr/lib/jvm/java-21-openjdk-amd64/bin/java -nosplash --launcher.suppressErrors &
 ```
 
-- HTTP API: `http://127.0.0.1:48080/api/v1/*` (port from `dcode-config.json httpPort`,
-  else PortAllocator from 48080).
+- HTTP API: `http://127.0.0.1:58080/api/v1/*` (port from `dcode-config.json httpPort`,
+  else PortAllocator from 58080).
 - Interactive REPL: run without redirection on a terminal → `dcode>` prompt.
-- Health: `curl http://127.0.0.1:48080/api/v1/health`
+- Health: `curl http://127.0.0.1:58080/api/v1/health`
 - Stop: `./dcode-headless ... stop` (SIGTERMs the process bound to the port) or SIGTERM
   to the java process. NOTE: killing the launcher wrapper alone does not stop the JVM
   child.
@@ -72,7 +72,7 @@ cd product/eu.kalafatic.dcode.product/target/products/eu.kalafatic.dcode.ui.rcp/
 DISPLAY=:1 ./dcode -vm /usr/lib/jvm/java-21-openjdk-amd64/bin/java -consoleLog
 ```
 
-The RCP embeds the same server bundle; when 48080 is taken it binds the next free port
+The RCP embeds the same server bundle; when 58080 is taken it binds the next free port
 (verified: 48081) and publishes `dcode.server.port`. The UI connects to the local backend
 automatically (RuntimeConnection). Web interface lifecycle: `Tools ▸ Web Interface ▸
 Start/Stop/Restart/Status/Open` (drives the shared `WebServerControl` service).
@@ -109,19 +109,19 @@ Protocol selection is deterministic — the runtime id you target decides the ad
 there is no silent protocol fallback. Model selection:
 
 ```bash
-curl http://127.0.0.1:48080/api/v1/runtimes/enr/models          # native ENR discovery
-curl http://127.0.0.1:48080/api/v1/runtimes/ollama/models       # /api/tags
-curl http://127.0.0.1:48080/api/v1/runtimes/enr-ollama/models   # /api/tags via ENR
+curl http://127.0.0.1:58080/api/v1/runtimes/enr/models          # native ENR discovery
+curl http://127.0.0.1:58080/api/v1/runtimes/ollama/models       # /api/tags
+curl http://127.0.0.1:58080/api/v1/runtimes/enr-ollama/models   # /api/tags via ENR
 ```
 
 Direct inference (non-streaming / streaming SSE):
 
 ```bash
-curl -X POST http://127.0.0.1:48080/api/v1/inference/chat \
+curl -X POST http://127.0.0.1:58080/api/v1/inference/chat \
   -H 'Content-Type: application/json' \
   -d '{"runtimeId":"enr","model":"tiny-evo","messages":[{"role":"user","content":"hello"}]}'
 
-curl -N -X POST http://127.0.0.1:48080/api/v1/inference/chat/stream \
+curl -N -X POST http://127.0.0.1:58080/api/v1/inference/chat/stream \
   -H 'Content-Type: application/json' \
   -d '{"runtimeId":"ollama","model":"qwen3.8-32k:latest","messages":[{"role":"user","content":"hi"}]}'
 ```
@@ -154,7 +154,7 @@ Through the shell tool (`POST /api/v1/tools/shell/execute {"sessionId", "command
 execution happens inside the workspace root, as the DCode user:
 
 ```bash
-curl -X POST http://127.0.0.1:48080/api/v1/tools/shell/execute \
+curl -X POST http://127.0.0.1:58080/api/v1/tools/shell/execute \
   -H 'Content-Type: application/json' \
   -d '{"sessionId":"<sid>","command":"pwd && whoami && uname -a"}'
 ```
@@ -197,7 +197,7 @@ New/changed regression coverage from this iteration:
 
 - `Unable to acquire application service` / launcher fails: wrong JDK — pass
   `-vm /usr/lib/jvm/java-21-openjdk-amd64/bin/java` (product requires JavaSE 17+).
-- Port already bound: PortAllocator falls back within 48080–48580; check occupants with
+- Port already bound: PortAllocator falls back within 58080–58580; check occupants with
   `ss -tlnp | grep 4808` and use `dcode-headless stop`.
 - JDT tools missing in headless: expected (no Eclipse resources workspace) — see report
   §6. In RCP they register after the workbench opens the workspace.

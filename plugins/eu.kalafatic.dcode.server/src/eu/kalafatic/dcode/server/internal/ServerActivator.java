@@ -187,14 +187,44 @@ public final class ServerActivator implements BundleActivator {
         state = WebServerState.STARTING;
         try {
             int configuredPort = configuration.getConfiguration().httpPort();
+            String bindAddress = configuration.getConfiguration().bindAddress();
             int port = configuredPort > 0 ? configuredPort
                     : PortAllocator.allocate(DCodePorts.HTTP,
                             DCodePorts.HTTP_FALLBACK_RANGE);
-            String bindAddress = configuration.getConfiguration().bindAddress();
-            server = new DCodeHttpServer(bindAddress, port, api,
-                    new eu.kalafatic.dcode.server.StaticContent.BundleEntry(
-                            context.getBundle()));
-            server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            boolean conflictFallback = false;
+            try {
+                server = new DCodeHttpServer(bindAddress, port, api,
+                        new eu.kalafatic.dcode.server.StaticContent.BundleEntry(
+                                context.getBundle()));
+                server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            } catch (java.io.IOException bindFailure) {
+                // Configured port occupied: deterministic fallback inside the DCode
+                // 58xxx block (never a silent jump to an unrelated port), then
+                // persisted so the next start reuses the same port.
+                if (configuredPort <= 0) {
+                    throw bindFailure;
+                }
+                int fallback = PortAllocator.allocate(DCodePorts.HTTP,
+                        DCodePorts.HTTP_FALLBACK_RANGE);
+                server = new DCodeHttpServer(bindAddress, fallback, api,
+                        new eu.kalafatic.dcode.server.StaticContent.BundleEntry(
+                                context.getBundle()));
+                server.start(fi.iki.elonen.NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+                port = fallback;
+                conflictFallback = true;
+                DCodeLog.warn("server", "Configured port " + configuredPort
+                        + " is occupied — bound fallback port " + fallback
+                        + " (58xxx block) and persisted it for the next start");
+            }
+            if (conflictFallback || configuredPort <= 0) {
+                try {
+                    configuration.update(
+                            configuration.getConfiguration().withHttpPort(port));
+                } catch (RuntimeException persistFailure) {
+                    DCodeLog.warn("server", "Could not persist the bound port "
+                            + port + ": " + persistFailure.getMessage());
+                }
+            }
             boundPort = port;
             boundAddress = bindAddress;
             state = WebServerState.RUNNING;

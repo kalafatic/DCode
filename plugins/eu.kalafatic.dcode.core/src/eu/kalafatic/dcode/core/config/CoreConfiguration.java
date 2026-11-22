@@ -52,6 +52,14 @@ public record CoreConfiguration(
         nodeId = nodeId == null ? "dcode-node-01" : nodeId;
     }
 
+    /** Copy with a different primary HTTP port (used to persist allocated ports). */
+    public CoreConfiguration withHttpPort(int port) {
+        return new CoreConfiguration(dataDir, workspacesDir, artifactsDir, logsDir,
+                port, managementPort, bindAddress, nodeId, appVersion, defaultProvider,
+                providerEndpoint, harnessType, agentRole, defaultModel,
+                webServerEnabled, webServerAutoStart);
+    }
+
     /**
      * Default configuration with sensible defaults.
      */

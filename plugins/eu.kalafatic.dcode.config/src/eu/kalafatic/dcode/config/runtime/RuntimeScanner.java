@@ -60,7 +60,7 @@ public final class RuntimeScanner {
 
     /** Default well-known local endpoints of the supported services. */
     public static final List<String> DEFAULT_ENDPOINTS = List.of(
-            "http://127.0.0.1:48080", // DCode default API port
+            "http://127.0.0.1:58080", // DCode default API port
             "http://127.0.0.1:8111",  // standalone ENR
             "http://127.0.0.1:28780", // EVO-embedded ENR
             "http://127.0.0.1:11434"); // Ollama

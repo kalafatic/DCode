@@ -43,7 +43,9 @@ Date: 2026-11-17
 
 ## Known risks / open items
 
-1. Port 48080 is shared by convention between DCode HTTP and DStudio TEIP (both loopback,
+1. ~~Port 48080 is shared by convention between DCode HTTP and DStudio TEIP~~ — RESOLVED
+   2026-11-22: family convention finalized as DStudio 48xxx / DCode 58xxx; DCode migrated to
+   58080. (both loopback,
    both with fallback allocation). Documented; product-owner confirmation of the 48xxx
    DCode range vs DStudio TEIP remains pending (Phase 5 open item).
 2. DCode TEIP 1.1 server surface remains deferred (DStudio hosts the family TEIP harness

@@ -9,6 +9,8 @@ import eu.kalafatic.dcode.core.model.Session;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.prefs.Preferences;
 
@@ -49,6 +51,14 @@ public final class RuntimeConnection {
             new AtomicReference<>(ConnectionState.DISCONNECTED);
     private final List<ConnectionStateListener> stateListeners = new CopyOnWriteArrayList<>();
     private final BackendProbe probe = new BackendProbe();
+    private final ExecutorService probeScheduler =
+            Executors.newSingleThreadExecutor(r -> {
+                Thread thread = new Thread(r, "dcode-connection-retry");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private static final int PROBE_RETRIES = 6;
+    private static final long PROBE_RETRY_DELAY_MILLIS = 2000;
     private volatile boolean localMode = true;
     private volatile Session activeSession;
     private volatile BackendIdentity identity;
@@ -81,13 +91,27 @@ public final class RuntimeConnection {
     /**
      * Probes the backend identity and transitions the connection state. Used both on
      * startup and for the user-triggered recheck.
+     *
+     * <p>Transient startup races are retried with a bounded backoff instead of
+     * stranding the whole UI in ERROR: the probe can run before the embedded server
+     * has bound its port, and a stale keep-alive connection to a previous instance's
+     * port fails with a closed channel. When the embedded server is running on its
+     * own port while the configured endpoint is dead, the connection re-targets the
+     * local server instead.</p>
      */
     private void probeBackend(DCodeApiClient client) {
         setState(ConnectionState.CONNECTING, null, "");
+        probe(client, PROBE_RETRIES);
+    }
+
+    private void probe(DCodeApiClient client, int attemptsLeft) {
         probe.probe(client).whenComplete((result, throwable) -> Ui.async(() -> {
+            if (api.get() != client) {
+                return; // superseded by a reconnect
+            }
             if (throwable != null) {
-                setState(ConnectionState.ERROR, null, String.valueOf(throwable));
-                Ui.log("error", "Connection probe failed: " + throwable.getMessage());
+                handleProbeFailure(client, attemptsLeft,
+                        String.valueOf(throwable));
                 return;
             }
             if (result.identity() != null && !result.identity().isDCode()
@@ -104,6 +128,12 @@ public final class RuntimeConnection {
                         RuntimeConnection.class);
                 preferences.remove(PREF_ENDPOINT);
                 initialize();
+                return;
+            }
+            if (result.state() == ConnectionState.ERROR && attemptsLeft > 1
+                    && localRuntimePresent()) {
+                Ui.log("network", result.describe() + " — retrying…");
+                scheduleProbe(client, attemptsLeft - 1);
                 return;
             }
             setState(result.state(), result.identity(), result.diagnostic());
@@ -125,6 +155,73 @@ public final class RuntimeConnection {
                 default -> Ui.log("network", result.describe());
             }
         }));
+    }
+
+    /**
+     * Failure recovery: when the configured endpoint is unreachable but the embedded
+     * server is running on its own port, re-target the connection locally — a stale
+     * persisted endpoint must never strand the UI. Otherwise retry briefly (the
+     * server may still be binding) before settling on ERROR.
+     */
+    private void handleProbeFailure(DCodeApiClient client, int attemptsLeft,
+                                    String message) {
+        String localUrl = localServerUrl();
+        if (localUrl != null && !localUrl.equals(client.baseUrl())) {
+            Ui.log("warning", "Endpoint " + client.baseUrl()
+                    + " is unreachable (" + message
+                    + "); switching to the local embedded DCode server at "
+                    + localUrl);
+            Preferences preferences = Preferences.userNodeForPackage(
+                    RuntimeConnection.class);
+            preferences.remove(PREF_ENDPOINT);
+            initialize();
+            return;
+        }
+        if (attemptsLeft > 1 && localRuntimePresent()) {
+            Ui.log("network", "Connection probe failed (" + message
+                    + ") — retrying…");
+            scheduleProbe(client, attemptsLeft - 1);
+            return;
+        }
+        setState(ConnectionState.ERROR, null, message);
+        Ui.log("error", "Connection probe failed: " + message);
+    }
+
+    private void scheduleProbe(DCodeApiClient client, int attemptsLeft) {
+        probeScheduler.execute(() -> {
+            try {
+                Thread.sleep(PROBE_RETRY_DELAY_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (api.get() != client) {
+                return;
+            }
+            probe(client, attemptsLeft);
+        });
+    }
+
+    /** True when an embedded server runtime exists (running or still booting). */
+    private static boolean localRuntimePresent() {
+        return localServerRunning() || WebServerControlAccess.get() != null
+                || System.getProperty("dcode.server.port") != null;
+    }
+
+    /** URL of the running embedded server, or null. */
+    private static String localServerUrl() {
+        var control = WebServerControlAccess.get();
+        if (control != null && control.isRunning()) {
+            String url = control.url();
+            if (url != null && !url.isBlank()) {
+                return url;
+            }
+        }
+        String port = System.getProperty("dcode.server.port");
+        if (port != null && !port.isBlank()) {
+            return "http://127.0.0.1:" + port;
+        }
+        return null;
     }
 
     /** True when the embedded local DCode server is actually running. */
@@ -313,7 +410,7 @@ public final class RuntimeConnection {
             return "http://127.0.0.1:" + port;
         }
         localMode = false;
-        return "http://127.0.0.1:48080";
+        return "http://127.0.0.1:58080";
     }
 
     /** Reads the token from Eclipse secure storage, falling back to preferences. */

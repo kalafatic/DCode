@@ -101,7 +101,7 @@ registry and no shared harness runtime.
 ## 5. DCode REST mapping (conformant wire surface)
 
 The native DCode harness exposes the following delegation flow under `/api/v1`
-(default `http://localhost:48080`, loopback, bearer token optional in dev mode):
+(default `http://localhost:58080`, loopback, bearer token optional in dev mode):
 
 | Step | Call |
 |---|---|

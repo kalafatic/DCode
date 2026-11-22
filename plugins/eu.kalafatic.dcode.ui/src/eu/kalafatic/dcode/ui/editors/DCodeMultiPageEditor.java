@@ -251,6 +251,31 @@ public final class DCodeMultiPageEditor extends MultiPageEditorPart {
                         return;
                     }
                 }
+                if (baseUrl == null && attempt % 10 == 0) {
+                    // The embedded server is not visible yet (slow bundle wiring or a
+                    // recovery pass): keep the boot hook alive — it retries until the
+                    // WebServerControl registers.
+                    eu.kalafatic.dcode.ui.ServerRuntimeBoot
+                            .ensureServerBundleActive();
+                    // The control can be registered while the HTTP server is stopped
+                    // (e.g. a lifecycle stage failed before the server stage, or
+                    // auto-start was turned off): start it explicitly so the Web tab
+                    // does not wait forever on a control that will never run.
+                    var control = eu.kalafatic.dcode.ui.WebServerControlAccess.get();
+                    if (control != null && !control.isRunning()
+                            && control.state()
+                            != eu.kalafatic.dcode.core.server.WebServerState.DISABLED) {
+                        Ui.log("info", "Local web server registered but not running "
+                                + "(state=" + control.state()
+                                + "); starting it for the Web tab.");
+                        try {
+                            control.start();
+                        } catch (RuntimeException startError) {
+                            Ui.log("error", "Cannot start the local web server: "
+                                    + startError.getMessage());
+                        }
+                    }
+                }
                 if (attempt % 10 == 0) {
                     String message = "Waiting for the DCode web application (attempt "
                             + attempt + "/" + READINESS_ATTEMPTS

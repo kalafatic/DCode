@@ -136,6 +136,18 @@ class RcpWorkbenchSmokeTest {
         org.osgi.framework.BundleContext bundleContext =
                 org.osgi.framework.FrameworkUtil.getBundle(RcpWorkbenchSmokeTest.class)
                         .getBundleContext();
+        // The surefire runtime starts bundles lazily; a real product configuration
+        // lists every DCode bundle with start. Start the whole platform set first so
+        // this test is independent of execution order (cold starts included) — the
+        // server bundle's service gate depends on services registered by the other
+        // platform bundles.
+        for (org.osgi.framework.Bundle bundle : bundleContext.getBundles()) {
+            String name = bundle.getSymbolicName();
+            if (name != null && name.startsWith("eu.kalafatic.dcode")
+                    && bundle.getState() != org.osgi.framework.Bundle.ACTIVE) {
+                bundle.start();
+            }
+        }
         org.osgi.framework.Bundle serverBundle = null;
         for (org.osgi.framework.Bundle bundle : bundleContext.getBundles()) {
             if ("eu.kalafatic.dcode.server".equals(bundle.getSymbolicName())) {

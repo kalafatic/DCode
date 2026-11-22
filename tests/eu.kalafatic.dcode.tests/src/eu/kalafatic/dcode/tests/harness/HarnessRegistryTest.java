@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -49,5 +50,31 @@ class HarnessRegistryTest {
         assertEquals(opencode.integrated() && opencode.available(), opencode.usable());
         // usability is the only execution gate
         assertFalse(opencode.usable());
+    }
+
+    @Test
+    void defaultSelectionDefaultsToDcodeAndCanChange() {
+        var registry = new DefaultHarnessRegistry();
+        assertEquals("dcode", registry.defaultHarnessId().orElse(""));
+        registry.selectDefaultHarness("opencode");
+        assertEquals("opencode", registry.defaultHarnessId().orElse(""));
+        registry.selectDefaultHarness("");
+        assertTrue(registry.defaultHarnessId().isEmpty());
+        registry.selectDefaultHarness("dcode");
+    }
+
+    @Test
+    void enablementCanBeToggledAndUnknownIdsAreRejected() {
+        var registry = new DefaultHarnessRegistry();
+        assertTrue(registry.isEnabled("dcode"));
+        registry.setHarnessEnabled("opencode", false);
+        assertFalse(registry.isEnabled("opencode"));
+        registry.setHarnessEnabled("opencode", true);
+        assertTrue(registry.isEnabled("opencode"));
+        assertTrue(registry.isEnabled("claude"));
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.selectDefaultHarness("missing"));
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.setHarnessEnabled("missing", true));
     }
 }

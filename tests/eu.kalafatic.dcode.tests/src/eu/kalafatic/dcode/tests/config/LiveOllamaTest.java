@@ -46,7 +46,10 @@ class LiveOllamaTest {
     @Test
     void completesChatAgainstLiveOllama() {
         String model = System.getProperty("dcode.live.model");
-        Assumptions.assumeTrue(model != null && !model.isBlank(),
+        // Tycho surefire passes an empty POM property as the literal string "null";
+        // treat that as unset so the opt-in requirement holds.
+        Assumptions.assumeTrue(model != null && !model.isBlank()
+                        && !"null".equals(model),
                 "No -Ddcode.live.model set; live completion skipped");
         Assumptions.assumeTrue(ollamaReachable(), "Ollama not reachable; live test skipped");
         OllamaProvider provider = OllamaProvider.localDefault();

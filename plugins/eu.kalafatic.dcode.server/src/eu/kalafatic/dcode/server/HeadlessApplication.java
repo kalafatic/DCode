@@ -232,11 +232,10 @@ public final class HeadlessApplication implements IApplication {
         CONSOLE.println("[DCode] Headless runtime starting (no UI dependencies)");
         // The server itself is started by the ServerActivator at the SERVER lifecycle
         // stage; commands run against it once the port is published.
-        // Commands always target the configured (primary) DCode port: a second
-        // process issuing `status`/`stop` must observe the running server, not its
-        // own transient instance.
-        int configuredPort = integerProperty("dcode.port",
-                eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
+        // Commands always target the authoritative DCode port (see commandPort):
+        // a second process issuing `status`/`stop` must observe the running server,
+        // not its own transient instance.
+        int configuredPort = commandPort();
         String endpoint = "http://127.0.0.1:" + configuredPort;
         if (!first.isBlank()) {
             // Wait for this instance to finish binding when it is the primary server.
@@ -634,8 +633,7 @@ public final class HeadlessApplication implements IApplication {
             CONSOLE.println("Usage: config [show]");
             return 1;
         }
-        int configuredPort = integerProperty("dcode.port",
-                eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
+        int configuredPort = commandPort();
         String boundPort = System.getProperty("dcode.server.port");
         java.nio.file.Path dataDir = java.nio.file.Path.of(System.getProperty("dcode.home",
                 java.nio.file.Path.of(System.getProperty("user.home", "."), ".dcode")
@@ -656,8 +654,7 @@ public final class HeadlessApplication implements IApplication {
     }
 
     private int cmdStart(List<String> args, String endpoint) throws Exception {
-        int configuredPort = integerProperty("dcode.port",
-                eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
+        int configuredPort = commandPort();
         if (portOccupied(configuredPort)) {
             JsonNode status = getJson(endpoint + "/api/v1/status");
             CONSOLE.println("[DCode] Server already running on port " + configuredPort
@@ -799,25 +796,62 @@ public final class HeadlessApplication implements IApplication {
         return args == null || args.isEmpty() ? defaultValue : args.get(0);
     }
 
-    private static int integerProperty(String name, int defaultValue) {
-        String value = System.getProperty(name);
-        if (value == null || value.isBlank()) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
-
     private static boolean portOccupied(int port) {
         return eu.kalafatic.dcode.core.port.PortInspector.occupant(port).isPresent();
     }
 
+    /**
+     * Authoritative port for CLI commands: the port the embedded server actually
+     * bound ({@code dcode.server.port}, published by the server bundle), else the
+     * explicit CLI override ({@code dcode.port}), else the persisted
+     * configuration ({@code httpPort} in dcode-config.json — covers fallback
+     * allocations), else the family default. The CLI never invents its own port.
+     */
+    private static int commandPort() {
+        String bound = System.getProperty("dcode.server.port");
+        if (bound != null && !bound.isBlank()) {
+            try {
+                return Integer.parseInt(bound.trim());
+            } catch (NumberFormatException e) {
+                // fall through to the next source
+            }
+        }
+        String override = System.getProperty("dcode.port");
+        if (override != null && !override.isBlank()) {
+            try {
+                return Integer.parseInt(override.trim());
+            } catch (NumberFormatException e) {
+                // fall through to the next source
+            }
+        }
+        int persisted = persistedHttpPort();
+        return persisted > 0 ? persisted
+                : eu.kalafatic.dcode.core.port.DCodePorts.HTTP;
+    }
+
+    /** Reads the persisted primary port from dcode-config.json (0 when absent). */
+    private static int persistedHttpPort() {
+        try {
+            java.nio.file.Path dataDir = java.nio.file.Path.of(
+                    System.getProperty("dcode.home",
+                            java.nio.file.Path.of(
+                                    System.getProperty("user.home", "."), ".dcode")
+                                    .toString()));
+            java.nio.file.Path configFile = dataDir.resolve("dcode-config.json");
+            if (!java.nio.file.Files.isRegularFile(configFile)) {
+                return 0;
+            }
+            String content = java.nio.file.Files.readString(configFile);
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("\"httpPort\"\\s*:\\s*(\\d+)").matcher(content);
+            return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     private void stopServerProcess() throws Exception {
-        int port = integerProperty("dcode.port",
-                eu.kalafatic.dcode.core.port.DCodePorts.HTTP);
+        int port = commandPort();
         var occupant = eu.kalafatic.dcode.core.port.PortInspector.occupant(port);
         if (occupant.isEmpty()) {
             CONSOLE.println("[DCode] Nothing is listening on port " + port);

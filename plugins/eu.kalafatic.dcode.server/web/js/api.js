@@ -4,10 +4,28 @@
  */
 window.DCodeApi = (function () {
     const base = location.origin;
-    let authToken = null; // in memory only; never persisted
+    // Shared with settings.html so one sign-in covers both pages of the same
+    // browser (mirrors the DStudio web client's dstudio.web.token behavior).
+    const TOKEN_KEY = 'dcode.web.token';
+    let authToken = null;
+
+    function loadToken() {
+        try {
+            authToken = localStorage.getItem(TOKEN_KEY) || null;
+        } catch (e) {
+            authToken = null;
+        }
+    }
 
     function setToken(token) {
         authToken = token || null;
+        try {
+            if (authToken) {
+                localStorage.setItem(TOKEN_KEY, authToken);
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        } catch (e) { /* storage unavailable */ }
     }
 
     function hasToken() {
@@ -49,6 +67,8 @@ window.DCodeApi = (function () {
         }
         return payload;
     }
+
+    loadToken();
 
     return {
         get: (path) => request('GET', path),
