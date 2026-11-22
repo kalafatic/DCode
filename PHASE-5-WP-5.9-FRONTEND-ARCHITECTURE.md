@@ -176,3 +176,31 @@ authoritative is stored in the browser.
   `js/api.js` and `DCodeApi.FRONTEND_VERSION` (`/api/v1/health` → `frontendVersion`).
 - The build badge in the topbar and the bottom status bar expose the revision at
   runtime in the UI itself.
+
+### 7.4 Addendum 2026-11-22 (e) — Eclipse Run/Debug finalization
+
+- DCode's serving already used `Bundle.getEntry` (`StaticContent.BundleEntry`), the
+  single OSGi mechanism now shared with DStudio: packaged jars and PDE
+  directory-installed workspace bundles expose the same `web/…` paths from the
+  same authoritative source tree. The temporary `source.web/ = web/` entry was
+  reverted (JDT flattening hazard).
+- `/api/v1/health` reports `frontendVersion`, `resourceSource: "osgi-bundle"`,
+  `executionMode: "pde"|"product"` (diagnostic only).
+- Shared launch configuration committed at
+  `features/eu.kalafatic.dcode.feature/DCode_RCP_Application.launch` (product
+  `eu.kalafatic.dcode.ui.rcp`, workspace bundles selected, JavaSE-21) — identical
+  for Run As and Debug As after a workspace refresh.
+- `FrontendDeliveryTest` extended with the directory-bundle proof (PDE layout,
+  same logical paths, unmodified content).
+
+### 7.5 Addendum 2026-11-22 (f) — Local no-auth policy and navigation fix
+
+- DCode already had the required behavior (`DCodeApi.isAuthorized` returns true
+  when no server token is configured), so PDE Run/Debug and packaged RCP access
+  the API without credentials. Verified live in the RCP product: server RUNNING,
+  WebKit browser created, `/api/v1/health` 200 without a token.
+- No authentication mechanism was added. DStudio aligned to the same local
+  no-auth policy (loopback trusted; remote token gate unchanged).
+- Grouped navigation now uses a 2-column grid so the group labels no longer clip
+  (`css/app.css`); verified in the served stylesheet of the running RCP.
+- Screenshot: `/tmp/opencode/ui/dcode-noauth.png`.
